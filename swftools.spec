@@ -12,6 +12,7 @@ Release:	0.1
 License:	GPL
 Group:		Applications/Graphics
 Source0:	http://www.quiss.org/swftools/%{name}-%{version}.tar.gz
+# Source0-md5:	ce1a8075cd35ba62f1bb67c281cc3774
 URL:		http://www.quiss.org/swftools/
 BuildRequires:	autoconf
 BuildRequires:	automake
