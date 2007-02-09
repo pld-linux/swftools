@@ -2,7 +2,7 @@ Summary:	Utilities for SWF files manipulation
 Summary(pl):	Narzêdzia do manipulacji na plikach SWF
 Name:		swftools
 Version:	0.4.3
-Release:	1
+Release:	2
 License:	GPL
 Group:		Applications/Graphics
 Source0:	http://www.quiss.org/swftools/%{name}-%{version}.tar.gz
