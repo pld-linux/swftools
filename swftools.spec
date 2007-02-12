@@ -1,7 +1,7 @@
 # TODO:
 # - shared patches?
 Summary:	Utilities for SWF files manipulation
-Summary(pl.UTF-8):   Narzędzia do manipulacji na plikach SWF
+Summary(pl.UTF-8):	Narzędzia do manipulacji na plikach SWF
 Name:		swftools
 Version:	0.8.0
 Release:	0.1
@@ -34,7 +34,7 @@ Narzędzia do manipulacji na plikach SWF.
 
 %package avi
 Summary:	avi2swf - convert AVI files into SWF
-Summary(pl.UTF-8):   avi2swf - narzędzie do konwersji plików AVI do SWF
+Summary(pl.UTF-8):	avi2swf - narzędzie do konwersji plików AVI do SWF
 Group:		Applications/Graphics
 Requires:	%{name} = %{version}-%{release}
 
