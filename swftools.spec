@@ -1,7 +1,7 @@
 # TODO:
 # - shared patches?
 Summary:	Utilities for SWF files manipulation
-Summary(pl):	Narzêdzia do manipulacji na plikach SWF
+Summary(pl.UTF-8):   NarzÄ™dzia do manipulacji na plikach SWF
 Name:		swftools
 Version:	0.8.0
 Release:	0.1
@@ -29,12 +29,12 @@ BuildRoot:	%{tmpdir}/%{name}-%{version}-root-%(id -u -n)
 %description
 Utilities for SWF files manipulation.
 
-%description -l pl
-Narzêdzia do manipulacji na plikach SWF.
+%description -l pl.UTF-8
+NarzÄ™dzia do manipulacji na plikach SWF.
 
 %package avi
 Summary:	avi2swf - convert AVI files into SWF
-Summary(pl):	avi2swf - narzêdzie do konwersji plików AVI do SWF
+Summary(pl.UTF-8):   avi2swf - narzÄ™dzie do konwersji plikÃ³w AVI do SWF
 Group:		Applications/Graphics
 Requires:	%{name} = %{version}-%{release}
 
@@ -42,8 +42,8 @@ Requires:	%{name} = %{version}-%{release}
 This package contains avi2swf tool which converts AVI Video files into
 Flash SWF Animation files.
 
-%description avi -l pl
-Ten pakiet zawiera narzêdzie avi2swf konwertuj±ce pliki obrazu AVI na
+%description avi -l pl.UTF-8
+Ten pakiet zawiera narzÄ™dzie avi2swf konwertujÄ…ce pliki obrazu AVI na
 pliki animacji Flash SWF.
 
 %prep
