@@ -4,7 +4,7 @@ Summary:	Utilities for SWF files manipulation
 Summary(pl):	Narzêdzia do manipulacji na plikach SWF
 Name:		swftools
 Version:	0.8.0
-Release:	1
+Release:	2
 License:	GPL
 Group:		Applications/Graphics
 Source0:	http://www.swftools.org/%{name}-%{version}.tar.gz
@@ -57,6 +57,8 @@ pliki animacji Flash SWF.
 #%{__autoconf}
 #CPPFLAGS="-I/usr/X11R6/include"
 # can't regenerate -- missing RFX_CHECK_OLDGCC macro
+CFLAGS="-fPIC %{rpmcxxflags}"
+CXXFLAGS="-fPIC %{rpmcxxflags}"
 %configure \
 	--disable-static
 %{__make}
