@@ -1,19 +1,19 @@
 # TODO:
-# - shared patches?
+# - shared patch?
 Summary:	Utilities for SWF files manipulation
 Summary(pl.UTF-8):	Narzędzia do manipulacji na plikach SWF
 Name:		swftools
-Version:	0.8.0
+Version:	0.8.1
 Release:	0.1
 License:	GPL
 Group:		Applications/Graphics
 Source0:	http://www.swftools.org/%{name}-%{version}.tar.gz
-# Source0-md5:	acc720839689fbf75c1b119fd00d555d
-#Patch0: %{name}-shared.patch
-#Patch1: %{name}-t1lib.patch
+# Source0-md5:	932f4e5fce551ed70c0390fdc0eb1af6
+#Patch0:		%{name}-shared.patch
+Patch0:		%{name}-missing-m4.patch
 URL:		http://www.swftools.org/
-#BuildRequires:	autoconf
-#BuildRequires:	automake
+BuildRequires:	autoconf
+BuildRequires:	automake
 BuildRequires:	avifile-devel
 BuildRequires:	giflib-devel
 BuildRequires:	lame-libs-devel
@@ -48,15 +48,13 @@ pliki animacji Flash SWF.
 
 %prep
 %setup -q
-#%patch0 -p1
-#%patch1 -p1
+%patch0 -p1
 
 %build
-#%{__libtoolize}
-#%{__aclocal} -I m4
-#%{__autoconf}
-#CPPFLAGS="-I/usr/X11R6/include"
-# can't regenerate -- missing RFX_CHECK_OLDGCC macro
+%{__libtoolize}
+%{__aclocal} -I m4
+%{__autoconf}
+%{__autoheader}
 %configure \
 	--disable-static
 %{__make}
