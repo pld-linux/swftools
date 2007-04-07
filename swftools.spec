@@ -1,5 +1,3 @@
-# TODO:
-# - shared patch?
 Summary:	Utilities for SWF files manipulation
 Summary(pl.UTF-8):	Narzędzia do manipulacji na plikach SWF
 Name:		swftools
@@ -9,7 +7,6 @@ License:	GPL
 Group:		Applications/Graphics
 Source0:	http://www.swftools.org/%{name}-%{version}.tar.gz
 # Source0-md5:	932f4e5fce551ed70c0390fdc0eb1af6
-#Patch0:		%{name}-shared.patch
 Patch0:		%{name}-missing-m4.patch
 URL:		http://www.swftools.org/
 BuildRequires:	autoconf
@@ -78,11 +75,6 @@ rm -f $RPM_BUILD_ROOT%{_libdir}/lib*.{la,so}
 %clean
 rm -rf $RPM_BUILD_ROOT
 
-%if 0
-%post	-p /sbin/ldconfig
-%postun	-p /sbin/ldconfig
-%endif
-
 %files
 %defattr(644,root,root,755)
 %doc AUTHORS ChangeLog FAQ TODO
@@ -98,7 +90,6 @@ rm -rf $RPM_BUILD_ROOT
 %attr(755,root,root) %{_bindir}/swfextract
 %attr(755,root,root) %{_bindir}/swfstrings
 %attr(755,root,root) %{_bindir}/wav2swf
-#%attr(755,root,root) %{_libdir}/lib*.so.*.*.*
 %{_mandir}/man1/font2swf.1*
 %{_mandir}/man1/gif2swf.1*
 %{_mandir}/man1/jpeg2swf.1*
