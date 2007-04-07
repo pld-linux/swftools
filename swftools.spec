@@ -54,7 +54,6 @@ pliki animacji Flash SWF.
 %{__libtoolize}
 %{__aclocal} -I m4
 %{__autoconf}
-%{__autoheader}
 %configure \
 	--disable-static
 %{__make}
