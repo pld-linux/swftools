@@ -19,7 +19,7 @@ BuildRequires:	libstdc++-devel
 BuildRequires:	libtool
 BuildRequires:	t1lib-devel >= 5.0.1
 BuildRequires:	zlib-devel
-Requires:	ghostscript-fonts-std
+Requires:	fonts-Type1-urw
 Requires:	t1lib >= 5.0.1
 BuildRoot:	%{tmpdir}/%{name}-%{version}-root-%(id -u -n)
 
