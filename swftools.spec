@@ -1,13 +1,13 @@
 Summary:	Utilities for SWF files manipulation
 Summary(pl.UTF-8):	Narzędzia do manipulacji na plikach SWF
 Name:		swftools
-Version:	0.8.1
+Version:	0.9.0
 Release:	0.1
 License:	GPL
 Group:		Applications/Graphics
 Source0:	http://www.swftools.org/%{name}-%{version}.tar.gz
-# Source0-md5:	932f4e5fce551ed70c0390fdc0eb1af6
-Patch0:		%{name}-missing-m4.patch
+# Source0-md5:	946e7c692301a332745d29140bc74e55
+# Patch0:		%{name}-missing-m4.patch
 URL:		http://www.swftools.org/
 BuildRequires:	autoconf
 BuildRequires:	automake
@@ -17,8 +17,10 @@ BuildRequires:	lame-libs-devel
 BuildRequires:	libjpeg-devel
 BuildRequires:	libstdc++-devel
 BuildRequires:	libtool
+BuildRequires:	python-PIL-devel
 BuildRequires:	t1lib-devel >= 5.0.1
 BuildRequires:	zlib-devel
+
 Requires:	fonts-Type1-urw
 Requires:	t1lib >= 5.0.1
 BuildRoot:	%{tmpdir}/%{name}-%{version}-root-%(id -u -n)
@@ -45,7 +47,7 @@ pliki animacji Flash SWF.
 
 %prep
 %setup -q
-%patch0 -p1
+# %%patch0 -p1
 
 %build
 %{__libtoolize}
@@ -53,6 +55,11 @@ pliki animacji Flash SWF.
 %{__autoconf}
 %configure \
 	--disable-static
+
+python ./setup.py install \
+	--optimize 2 \
+	--root=$RPM_BUILD_ROOT
+
 %{__make}
 
 %install
@@ -77,7 +84,9 @@ rm -rf $RPM_BUILD_ROOT
 
 %files
 %defattr(644,root,root,755)
-%doc AUTHORS ChangeLog FAQ TODO
+%doc AUTHORS ChangeLog FAQ 
+
+%attr(755,root,root) %{_bindir}/as3compile
 %attr(755,root,root) %{_bindir}/font2swf
 %attr(755,root,root) %{_bindir}/gif2swf
 %attr(755,root,root) %{_bindir}/jpeg2swf
@@ -88,8 +97,12 @@ rm -rf $RPM_BUILD_ROOT
 %attr(755,root,root) %{_bindir}/swfcombine
 %attr(755,root,root) %{_bindir}/swfdump
 %attr(755,root,root) %{_bindir}/swfextract
+%attr(755,root,root) %{_bindir}/swfrender
 %attr(755,root,root) %{_bindir}/swfstrings
 %attr(755,root,root) %{_bindir}/wav2swf
+
+
+%{_mandir}/man1/as3compile.1*
 %{_mandir}/man1/font2swf.1*
 %{_mandir}/man1/gif2swf.1*
 %{_mandir}/man1/jpeg2swf.1*
@@ -100,6 +113,7 @@ rm -rf $RPM_BUILD_ROOT
 %{_mandir}/man1/swfcombine.1*
 %{_mandir}/man1/swfdump.1*
 %{_mandir}/man1/swfextract.1*
+%{_mandir}/man1/swfrender.1*
 %{_mandir}/man1/swfstrings.1*
 %{_mandir}/man1/wav2swf.1*
 %{_datadir}/%{name}
