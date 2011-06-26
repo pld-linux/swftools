@@ -12,12 +12,15 @@ Patch1:		%{name}-missing-m4.patch
 URL:		http://www.swftools.org/
 BuildRequires:	autoconf
 BuildRequires:	automake
+BuildRequires:	fftw3-devel
+BuildRequires:	fontconfig-devel
 BuildRequires:	freetype-devel
 BuildRequires:	giflib-devel
 BuildRequires:	lame-libs-devel
 BuildRequires:	libjpeg-devel
 BuildRequires:	libstdc++-devel
 BuildRequires:	libtool
+BuildRequires:	pdflib-devel
 BuildRequires:	zlib-devel
 Requires:	fonts-Type1-urw
 Requires:	t1lib >= 5.0.1
