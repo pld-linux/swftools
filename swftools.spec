@@ -1,18 +1,17 @@
 Summary:	Utilities for SWF files manipulation
 Summary(pl.UTF-8):	Narzędzia do manipulacji na plikach SWF
 Name:		swftools
-Version:	0.9.0
-Release:	4
+Version:	0.9.1
+Release:	1
 License:	GPL
 Group:		Applications/Graphics
 Source0:	http://www.swftools.org/%{name}-%{version}.tar.gz
-# Source0-md5:	946e7c692301a332745d29140bc74e55
-Patch0:		%{name}-gcc44.patch
-Patch1:		%{name}-swfstrings-print_unknown_chars.patch
+# Source0-md5:	72dc4a7bf5cdf98c28f9cf9b1d8f5d7a
+Patch0:		%{name}-swfstrings-print_unknown_chars.patch
+Patch1:		%{name}-missing-m4.patch
 URL:		http://www.swftools.org/
 BuildRequires:	autoconf
 BuildRequires:	automake
-BuildRequires:	avifile-devel
 BuildRequires:	freetype-devel
 BuildRequires:	giflib-devel
 BuildRequires:	lame-libs-devel
@@ -29,20 +28,6 @@ Utilities for SWF files manipulation.
 
 %description -l pl.UTF-8
 Narzędzia do manipulacji na plikach SWF.
-
-%package avi
-Summary:	avi2swf - convert AVI files into SWF
-Summary(pl.UTF-8):	avi2swf - narzędzie do konwersji plików AVI do SWF
-Group:		Applications/Graphics
-Requires:	%{name} = %{version}-%{release}
-
-%description avi
-This package contains avi2swf tool which converts AVI Video files into
-Flash SWF Animation files.
-
-%description avi -l pl.UTF-8
-Ten pakiet zawiera narzędzie avi2swf konwertujące pliki obrazu AVI na
-pliki animacji Flash SWF.
 
 %prep
 %setup -q
@@ -79,7 +64,7 @@ rm -rf $RPM_BUILD_ROOT
 
 %files
 %defattr(644,root,root,755)
-%doc AUTHORS ChangeLog FAQ
+%doc AUTHORS ChangeLog
 %attr(755,root,root) %{_bindir}/as3compile
 %attr(755,root,root) %{_bindir}/font2swf
 %attr(755,root,root) %{_bindir}/gif2swf
@@ -109,8 +94,3 @@ rm -rf $RPM_BUILD_ROOT
 %{_mandir}/man1/swfstrings.1*
 %{_mandir}/man1/wav2swf.1*
 %{_datadir}/%{name}
-
-%files avi
-%defattr(644,root,root,755)
-%attr(755,root,root) %{_bindir}/avi2swf
-%{_mandir}/man1/avi2swf.1*

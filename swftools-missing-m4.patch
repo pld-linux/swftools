@@ -1,330 +1,175 @@
-diff -Nur swftools-0.8.1/m4.orig/freetype.m4 swftools-0.8.1/m4/freetype.m4
---- swftools-0.8.1/m4.orig/freetype.m4	1970-01-01 01:00:00.000000000 +0100
-+++ swftools-0.8.1/m4/freetype.m4	2007-03-07 22:39:53.521436460 +0100
-@@ -0,0 +1,147 @@
-+# ----------- freetype.m4 ----------------
-+#
-+# Checks for:
-+#    * freetype library (-lfreetype)
-+#    * freetype headers (freetype2/freetype/freetype.h)
-+#    * whether a freetype test program can be compiled
-+# 
-+# Environment set:
-+#    * HAVE_FREETYPE
-+#
-+# Defines:
-+#    * HAVE_FREETYPE
-+#    * USE_FREETYPE
-+#
-+# Substitutes:
-+#
-+
-+AC_DEFUN(RFX_CHECK_FREETYPE,
+diff -urN swftools-0.9.1.org/m4/fftw.m4 swftools-0.9.1/m4/fftw.m4
+--- swftools-0.9.1.org/m4/fftw.m4	1970-01-01 01:00:00.000000000 +0100
++++ swftools-0.9.1/m4/fftw.m4	2011-06-26 18:46:01.834298018 +0200
+@@ -0,0 +1,52 @@
++AC_DEFUN([RFX_CHECK_FFTW],
 +[
-+
-+AC_PATH_PROG(FREETYPE_CONFIG, freetype-config,, "$PATH:/usr/local/bin:/sw/bin:/opt/local/bin")
-+
-+OLDCPPFLAGS="${CPPFLAGS}"
-+OLDLIBS="${LIBS}"
-+if test "x${FREETYPE_CONFIG}" '!=' "x"; then
-+    CPPFLAGS="$CPPFLAGS "`$FREETYPE_CONFIG --cflags`
-+else if test -d /usr/include/freetype2; then
-+    CPPFLAGS="$CPPFLAGS -I/usr/include/freetype2"
-+else if test -d /usr/local/include/freetype2; then
-+    CPPFLAGS="$CPPFLAGS -I/usr/local/include/freetype2"
-+fi 
-+fi
-+fi
-+
-+if test "x${FREETYPE_CONFIG}" '=' "x";then
-+    # if we didn't find the freetype-config program, we won't
-+    # know where the libs are expected to be. So just blindly
-+    # try to link against them.
-+    AC_CHECK_LIB(freetype, FT_Init_FreeType,HAVE_LIB_FREETYPE=1,)
-+fi
-+
-+AC_CHECK_HEADERS(ft2build.h,HAVE_FT2BUILD_H=1)
-+if test "x${HAVE_FT2BUILD_H}" '=' "x";then
-+    AC_CHECK_HEADERS(freetype/freetype.h,HAVE_FREETYPE_FREETYPE_H=1)
-+fi
-+
-+if test "x${HAVE_LIB_FREETYPE}" '!=' "x" -o \
-+        "x${FREETYPE_CONFIG}" '!=' "x";then
-+    if test "x${HAVE_FREETYPE_FREETYPE_H}" '!=' "x";then
-+	HAVE_FREETYPE=1
++  OLDCPPFLAGS="${CPPFLAGS}"
++  OLDLIBS="${LIBS}"
++  	
++  AC_CHECK_LIB(fftw3f, fftwf_plan_dft_r2c_2d, [HAVE_LIBFFTW3=1],)
++  AC_CHECK_HEADERS(fftw3.h,[HAVE_FFTW3_H=1])
++  
++  if test "x${HAVE_LIBFFTW3}" != "x";then
++    if test "x${HAVE_FFTW3_H}" != "x";then
++      HAVE_FFTW3=1
 +    fi
-+    if test "x${HAVE_FT2BUILD_H}" '!=' "x";then
-+	HAVE_FREETYPE=1
-+    fi
-+fi
-+
-+if test "x${HAVE_FREETYPE}" = "x1"; then 
-+    if test "x${FREETYPE_CONFIG}" '!=' "x"; then
-+	LIBS="$LIBS "`$FREETYPE_CONFIG --libs`
-+    else
-+	LIBS="$LIBS -lfreetype"
-+    fi
-+
-+    if test "x${HAVE_FT2BUILD_H}" = "x1"; then
-+	HAVE_FT2BUILD_H_DEFINE='#define HAVE_FT2BUILD_H'
-+    fi
-+
-+    AC_MSG_CHECKING([whether we can compile the freetype test program])
-+
++  fi
++  
++  if test "x${HAVE_FFTW3}" = "x1"; then 
++    LIBS="$LIBS -lfftw3f"
++    AC_MSG_CHECKING([whether we can compile the fftw3 test program])
++  
 +    cat > conftest.c << EOF
-+$HAVE_FT2BUILD_H_DEFINE
-+
-+#ifdef HAVE_FT2BUILD_H
-+#include <ft2build.h>
-+#include FT_FREETYPE_H
-+#include FT_GLYPH_H
-+#include FT_SIZES_H
-+#include FT_SFNT_NAMES_H
-+#include FT_TRUETYPE_IDS_H
-+#include FT_OUTLINE_H
-+#else
-+#include <freetype/freetype.h>
-+#include <freetype/ftglyph.h>
-+#include <freetype/ftsizes.h>
-+#include <freetype/ftsnames.h>
-+#include <freetype/ttnameid.h>
-+#include <freetype/ftoutln.h>
-+#endif
-+
-+int main()
-+{
-+    FT_Library ftlibrary;
-+    FT_Face face;
-+    FT_Error error;
-+    FT_ULong charcode;
-+    FT_UInt gindex;
-+    FT_Glyph glyph;
-+    FT_BBox bbox;
-+    FT_Matrix matrix;
-+    FT_UInt i;
-+    char* name = 0;
-+    char italic, bold;
-+   
-+    FT_Init_FreeType(&ftlibrary);
-+    FT_New_Face(ftlibrary, "filename", 0, &face);
-+    i = face->num_glyphs - 1;
-+    italic = face->style_flags&FT_STYLE_FLAG_ITALIC;
-+    bold = face->style_flags&FT_STYLE_FLAG_BOLD;
-+    FT_Get_Postscript_Name(face);
-+    FT_Get_Char_Index(face, 33);
-+    FT_Get_First_Char(face, &i);
-+    FT_Get_Next_Char(face, 33, &i);
-+    if(FT_HAS_GLYPH_NAMES(face)) {
-+	FT_Get_Glyph_Name(face, 33, name, 127);
-+    }
-+    FT_Load_Glyph(face, 33, FT_LOAD_NO_BITMAP|FT_LOAD_NO_SCALE);
-+    FT_Get_Glyph(face->glyph, &glyph);
-+    FT_Glyph_Get_CBox(glyph, ft_glyph_bbox_unscaled, &bbox);
-+    FT_Done_Glyph(glyph);
-+    FT_Done_Face(face);
-+    FT_Done_FreeType(ftlibrary);
-+    return 0;
-+}
-+EOF
-+
-+    ac_link='$CC $CPPFLAGS $CFLAGS conftest.c $LDFLAGS $LIBS -o conftest${ac_exeext}'
-+    if { (eval echo freetype.m4:71: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext}; then
-+	AC_MSG_RESULT(yes)
-+	AC_DEFINE_UNQUOTED(HAVE_FREETYPE, 1)
-+	AC_DEFINE_UNQUOTED(HAVE_FREETYPE_FREETYPE_H, 1)
-+	AC_DEFINE_UNQUOTED(USE_FREETYPE, 1)  # for ttf2tp1
-+    else
-+	echo "configure: failed program was:" >&5
-+	cat conftest.c >&5
-+	HAVE_FREETYPE=0
-+	AC_MSG_RESULT(no)
-+    fi
-+    rm -f conftest*
-+fi
-+
-+# if the above didn't work out, reset all changes to the compiler variables.
-+if test "x${HAVE_FREETYPE}" '!=' "x1"; then 
-+    CPPFLAGS=$OLDCPPFLAGS
-+    LIBS=$OLDLIBS
-+fi 
-+])
-+
-diff -Nur swftools-0.8.1/m4.orig/gcc.2.95.m4 swftools-0.8.1/m4/gcc.2.95.m4
---- swftools-0.8.1/m4.orig/gcc.2.95.m4	1970-01-01 01:00:00.000000000 +0100
-+++ swftools-0.8.1/m4/gcc.2.95.m4	2007-03-07 22:39:53.521436460 +0100
-@@ -0,0 +1,30 @@
-+AC_DEFUN(RFX_CHECK_OLDGCC,
-+[
-+AC_MSG_CHECKING([whether gcc supports lazy variable declaration])
-+
-+cat > conftest.c << EOF
-+#include <stdlib.h>
-+#include <stdio.h>
-+
-+int main (int argc, char*argv[])
-+{
-+    int a,b;
-+    b=3;
-+    int c;
-+    c=4;
-+    return 0;
-+}
-+EOF
-+
-+testprog_link='$CC $CPPFLAGS $CFLAGS conftest.c -o conftest${ac_exeext}'
-+if { (eval echo gcc.2.95.m4:19: \"$testprog_link\") 1>&5; (eval $testprog_link) 2>&5; } && test -s conftest${ac_exeext}; then
-+  AC_MSG_RESULT(yes)
-+  GCC_IS_OK=true
-+  export GCC_IS_OK
-+else
-+  echo "configure: failed program was:" >&5
-+  cat conftest.c >&5
-+  AC_MSG_RESULT(no)
-+fi
-+rm -f conftest*
-+])
-diff -Nur swftools-0.8.1/m4.orig/mingw.m4 swftools-0.8.1/m4/mingw.m4
---- swftools-0.8.1/m4.orig/mingw.m4	1970-01-01 01:00:00.000000000 +0100
-+++ swftools-0.8.1/m4/mingw.m4	2007-03-07 22:39:53.521436460 +0100
-@@ -0,0 +1,55 @@
-+AC_DEFUN(RFX_CHECK_MING,
-+[
-+AC_CANONICAL_HOST
-+AC_EXEEXT
-+
-+AC_MSG_CHECKING([for target system])
-+CYGWIN=
-+MINGW=
-+case $host_os in
-+    *cygwin* ) CYGWIN=yes;;
-+    *mingw* ) MINGW=yes;;
-+esac
-+
-+AR=ar
-+if test "x$MINGW" = "xyes"; then
-+    #fix for the debian distribution of mingw
-+    if test -x "/usr/i586-mingw32msvc/bin/ar";then
-+	AR="/usr/i586-mingw32msvc/bin/ar"
-+    fi
-+    if test -x "/usr/i586-mingw32msvc/bin/ranlib";then
-+	RANLIB="/usr/i586-mingw32msvc/bin/ranlib"
-+    fi
-+    #fix for the gentoo distribution of mingw
-+    if test -x "/opt/xmingw/bin/i386-mingw32msvc-ar";then
-+	AR="/opt/xmingw/bin/i386-mingw32msvc-ar"
-+    fi
-+    if test -x "/opt/xmingw/bin/i386-mingw32msvc-ranlib";then
-+	RANLIB="/opt/xmingw/bin/i386-mingw32msvc-ranlib"
-+    fi
-+    if test -x "/opt/xmingw/bin/i386-mingw32msvc-strip";then
-+	STRIP="/opt/xmingw/bin/i386-mingw32msvc-strip"
-+    fi
-+fi
-+AC_SUBST(AR)
-+
-+dnl Checks for system services
-+
-+if test "x${CYGWIN}" = "xyes"; then
-+    AC_DEFINE_UNQUOTED(CYGWIN, 1)
-+    AC_MSG_RESULT(cygwin)
-+else
-+    if test "x${MINGW}" = "xyes"; then
-+	AC_DEFINE_UNQUOTED(MINGW, 1)
-+	WIN32=1
-+	AC_DEFINE_UNQUOTED(WIN32, 1)
-+	LIBS="$LIBS -lws2_32 -lgdi32"
-+	AC_MSG_RESULT(mingw)
-+    else
-+	LINUX=1
-+	export LINUX
-+	AC_DEFINE_UNQUOTED(LINUX, 1)
-+	AC_MSG_RESULT()
-+    fi
-+fi
-+])
-diff -Nur swftools-0.8.1/m4.orig/python.m4 swftools-0.8.1/m4/python.m4
---- swftools-0.8.1/m4.orig/python.m4	1970-01-01 01:00:00.000000000 +0100
-+++ swftools-0.8.1/m4/python.m4	2007-03-07 22:39:53.521436460 +0100
-@@ -0,0 +1,82 @@
-+AC_DEFUN(RFX_CHECK_PYTHON,
-+[
-+AC_MSG_CHECKING([for Python.h and PIL])
-+
-+if test "x$PYTHON_LIB" '!=' "x" -a "x$PYTHON_INCLUDES" '!=' "x";then
-+    PY_VERSION=unknown
-+else
-+    if test "x$PYTHON_LIB" '!=' "x" -o "x$PYTHON_INCLUDES" '!=' "x";then
-+        echo "Set both PYTHON_LIB and PYTHON_INCLUDES, or none at all"
-+    fi
-+    # iterate through version 2.2 to 2.4
-+    for v in 2 3 4; do
-+        # Linux
-+        if test -f "/usr/lib/python2.$v/site-packages/PIL/_imaging.so" -a -f "/usr/include/python2.$v/Python.h";then
-+            PY_VERSION=2.$v
-+	    PYTHON_LIB="-lpython$PY_VERSION /usr/lib/python$PY_VERSION/site-packages/PIL/_imaging.so"
-+	    PYTHON_INCLUDES="-I/usr/include/python$PY_VERSION"
-+        # Mac OS X
-+        elif test -f "/System/Library/Frameworks/Python.framework/Versions/2.$v/include/python2.$v/Python.h";then
-+            #TODO: test for /System/Library/Frameworks/Python.framework/Versions/2.3/Python ?
-+            PY_VERSION=2.$v
-+            PYTHON_LIB="-framework Python" 
-+            if test -f "/Library/Python/2.$v/PIL/_imaging.so";then
-+                PYTHON_LIB2="$PYTHON_LIB /Library/Python/2.$v/PIL/_imaging.so"
-+            else
-+                PYTHON_LIB2="$PYTHON_LIB"
-+            fi
-+            PYTHON_INCLUDES="-I/System/Library/Frameworks/Python.framework/Versions/2.$v/include/python2.$v/"
-+	# Mac OS X [Fink]:
-+        elif test "(" -f "/sw/lib/python2.$v/config/libpython2.$v.dylib" \
-+	           -o -f "/sw/lib/python2.$v/config/libpython2.$v.a" \
-+	           -o -f "/sw/lib/python2.$v/config/libpython2.$v.so" \
-+	          ")" \
-+	       -a -f "/sw/include/python2.$v/Python.h" \
-+               -a -f "/sw/lib/python2.$v/site-packages/PIL/_imaging.so";then
-+            PY_VERSION=2.$v
-+            PYTHON_LIB="-L /sw/lib/python2.$v/config/ -lpython$PY_VERSION /sw/lib/python2.$v/site-packages/PIL/_imaging.so"
-+            PYTHON_INCLUDES="-I /sw/include/python2.$v/"
-+        fi
-+    done
-+fi
-+
-+if test "x$PY_VERSION" "!=" "x"; then
-+    AC_MSG_RESULT($PY_VERSION)
-+    export PYTHON_INCLUDES PYTHON_LIB
-+    AC_SUBST(PYTHON_LIB)
-+    AC_SUBST(PYTHON_INCLUDES)
-+    AC_MSG_CHECKING([whether we can compile the python test program])
++    #include <fftw3.h>
 +    
-+    cat > conftest.c << EOF
-+#include <Python.h>
-+#include <Imaging.h>
-+
-+int main()
-+{
-+    int ret;
-+    ret = Py_Main(0, 0);
-+    int x; // check also for gcc 2.95.x incompatibilities
-+    return ret;
-+}
++    int main()
++    {
++	char*data = fftw_malloc(sizeof(fftwf_complex)*600*800);
++    	fftwf_plan plan = fftwf_plan_dft_2d(600, 800, (fftwf_complex*)data, (fftwf_complex*)data, FFTW_FORWARD, FFTW_ESTIMATE);
++	plan = fftwf_plan_dft_r2c_2d(600, 800, (float*)data, (fftwf_complex*)data, FFTW_ESTIMATE);
++	plan = fftwf_plan_dft_c2r_2d(600, 800, (fftwf_complex*)data, (float*)data, FFTW_ESTIMATE);
++    	fftwf_execute(plan);
++    	fftwf_destroy_plan(plan);
++    }
 +EOF
-+    ac_link='$CC $CPPFLAGS $CFLAGS $PYTHON_INCLUDES conftest.c $LDFLAGS $PYTHON_LIB $LIBS -o conftest${ac_exeext}'
-+    if { (eval echo python.m4: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext}; then
-+	AC_MSG_RESULT(yes)
-+	PYTHON_OK=yes
++    
++    ac_link='$CC $CPPFLAGS $CFLAGS conftest.c $LDFLAGS $LIBS -o conftest${ac_exeext}'
++    if { (eval echo fftw3.m4:71: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext}; then
++      AC_MSG_RESULT(yes)
++      AC_DEFINE([HAVE_FFTW3], [1], [Define if fftw3 is available])
 +    else
-+        ac_link='$CC $CPPFLAGS $CFLAGS $PYTHON_INCLUDES conftest.c $LDFLAGS ${PYTHON_LIB2} $LIBS -o conftest${ac_exeext}'
-+        if { (eval echo python.m4: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext}; then
-+            AC_MSG_RESULT(yes)
-+            PYTHON_LIB="${PYTHON_LIB2}"
-+            PYTHON_OK=yes
-+        else
-+            echo "configure: failed program was:" >&5
-+            cat conftest.c >&5
-+            AC_MSG_RESULT(no)
-+        fi
++      echo "configure: failed program was:" >&5
++      cat conftest.c >&5
++      HAVE_FFTW3=0
++      AC_MSG_RESULT(no)
 +    fi
 +    rm -f conftest*
++  fi
++  
++  # if the above didn't work out, reset all changes to the compiler variables.
++  if test "x${HAVE_FFTW3}" "!=" "x1"; then 
++      CPPFLAGS=$OLDCPPFLAGS
++      LIBS=$OLDLIBS
++  fi 
++])
++
+diff -urN swftools-0.9.1.org/m4/lowercase.m4 swftools-0.9.1/m4/lowercase.m4
+--- swftools-0.9.1.org/m4/lowercase.m4	1970-01-01 01:00:00.000000000 +0100
++++ swftools-0.9.1/m4/lowercase.m4	2011-06-26 18:46:01.834298018 +0200
+@@ -0,0 +1,17 @@
++AC_DEFUN([RFX_CHECK_LOWERCASE_UPPERCASE],
++[
++AC_MSG_CHECKING([whether the filesystem normalizes file names])
++
++echo test1 > __abcdefghijklmnopqrstuvwxyz.txt
++echo test2 > __ABCDEFGHIJKLMNOPQRSTUVWXYZ.txt
++if test `cat __abcdefghijklmnopqrstuvwxyz.txt` = "test2";then
++    AC_MSG_RESULT(yes)
++    AC_DEFINE([LOWERCASE_UPPERCASE], [1], [Define if the file system is case invariant])
 +else
-+    AC_MSG_RESULT(nope)
++    AC_MSG_RESULT(no)
++fi
++
++rm -f __abcdefghijklmnopqrstuvwxyz.txt
++rm -f __ABCDEFGHIJKLMNOPQRSTUVWXYZ.txt
++])
++
+diff -urN swftools-0.9.1.org/m4/ruby.m4 swftools-0.9.1/m4/ruby.m4
+--- swftools-0.9.1.org/m4/ruby.m4	1970-01-01 01:00:00.000000000 +0100
++++ swftools-0.9.1/m4/ruby.m4	2011-06-26 18:46:01.834298018 +0200
+@@ -0,0 +1,94 @@
++AC_DEFUN([RFX_CHECK_RUBY],
++[
++AC_PATH_PROG([RUBY], [ruby],,)
++
++RUBY_CPPFLAGS=""
++RUBY_LDFLAGS=""
++RUBY_LIBS=""
++
++rubylib=ruby18
++
++AC_MSG_CHECKING([for ruby's include directory])
++if test "x$RUBY" '!=' "x";then
++    rubyinc=`$RUBY -e 'require "rbconfig";puts Config::expand(Config::CONFIG.send("\x5b\x5d", "archdir"))' 2>/dev/null`
++    if test -d $rubyinc;then
++	AC_MSG_RESULT($rubyinc)
++
++	# If we got a sensible archdir, we also ask ruby to supply us with CPPFLAGS
++	# and LDFLAGS.
++	AC_MSG_CHECKING([for ruby's cpp flags])
++	rubycpp=`$RUBY -e 'require "rbconfig";puts Config::expand(Config::CONFIG.send("\x5b\x5d", "CPPFLAGS"))' 2>/dev/null`
++	AC_MSG_RESULT($rubycpp)
++	
++	AC_MSG_CHECKING([for ruby's ld flags])
++	rubyld=`$RUBY -e 'require "rbconfig";puts Config::expand(Config::CONFIG.send("\x5b\x5d", "LIBRUBYARG_SHARED"))' 2>/dev/null`
++	rubyld2=`$RUBY -e 'require "rbconfig";v=Config::expand(Config::CONFIG.send("\x5b\x5d", "LIBRUBY_LDSHARED"));puts v.gsub(/^g?cc/,"")' 2>/dev/null`
++	AC_MSG_RESULT("$rubyld $rubyld2")
++	
++	AC_MSG_CHECKING([for ruby library name])
++	rubylib=`$RUBY -e 'require "rbconfig";puts Config::expand(Config::CONFIG.send("\x5b\x5d", "RUBY_SO_NAME"))' 2>/dev/null`
++	AC_MSG_RESULT($rubylib)
++	
++	RUBY_CPPFLAGS="$rubycpp -I$rubyinc $RUBY_CPPFLAGS"
++	RUBY_LDFLAGS="$rubyld $rubyld2 $RUBY_LDFLAGS"
++	RUBY_INSTALLDIR="$rubyinc"
++    else
++	AC_MSG_RESULT('unknown')
++    fi
++else
++    AC_MSG_RESULT('unknown')
++fi
++
++#OLDLDFLAGS="$LDFLAGS"
++#LDFLAGS="$LDFLAGS $RUBY_LDFLAGS"
++#AC_CHECK_LIB($rubylib, rb_define_method, HAVE_RUBY_LIB=1,)
++#LDFLAGS="$OLDLDFLAGS"
++
++OLDCPPFLAGS="$CPPFLAGS"
++CPPFLAGS="$CPPFLAGS $RUBY_CPPFLAGS"
++AC_CHECK_HEADERS([ruby.h],[HAVE_RUBY_H=1])
++CPPFLAGS="$OLDCPPFLAGS"
++
++AC_MSG_CHECKING([whether we should compile the ruby module])
++if test "x${HAVE_RUBY_H}" '!=' "x";then
++    #RUBY_LIBS="$RUBY_LIBS -l$rubylib"
++
++    cat > conftest.c << EOF
++#include <ruby.h>
++static VALUE foobar;
++VALUE foobar_set_foo(VALUE module, VALUE _key, VALUE _value)
++{
++    return Qnil;
++}
++int Init_foobar()
++{
++    foobar = rb_define_module("foobar");
++    rb_define_module_function(foobar, "set_foo", foobar_set_foo, 2);
++    return 0;
++}
++int main() {return 0;}
++EOF
++    ac_link='$CC $SHARED $CPPFLAGS $RUBY_CPPFLAGS $CFLAGS conftest.c $LDFLAGS $RUBY_LDFLAGS $LIBS $RUBY_LIBS -o conftest${SLEXT}'
++    if { (eval echo ruby.m4: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${SLEXT}; then
++	RUBY_OK=yes
++    else
++        echo "configure: failed program was:" >&5
++        cat conftest.c >&5
++    fi
++    rm -f conftest*
++fi
++
++if test "x${RUBY_OK}" '=' "xyes"; then 
++    AC_MSG_RESULT([yes])
++    AC_SUBST(RUBY_LIBS)
++    AC_SUBST(RUBY_CPPFLAGS)
++    AC_SUBST(RUBY_LDFLAGS)
++    AC_SUBST(RUBY_INSTALLDIR)
++else
++    AC_MSG_RESULT([no])
++    RUBY_CPPFLAGS=""
++    RUBY_LDFLAGS=""
++    RUBY_LIBS=""
++    RUBY_INSTALLDIR=""
 +fi
 +])
