@@ -2,7 +2,7 @@ Summary:	Utilities for SWF files manipulation
 Summary(pl.UTF-8):	Narzędzia do manipulacji na plikach SWF
 Name:		swftools
 Version:	0.9.1
-Release:	1
+Release:	2
 License:	GPL
 Group:		Applications/Graphics
 Source0:	http://www.swftools.org/%{name}-%{version}.tar.gz
@@ -20,8 +20,8 @@ BuildRequires:	lame-libs-devel
 BuildRequires:	libjpeg-devel
 BuildRequires:	libstdc++-devel
 BuildRequires:	libtool
-BuildRequires:	pdflib-devel
 BuildRequires:	zlib-devel
+BuildRequires:	zziplib-devel
 Requires:	fonts-Type1-urw
 Requires:	t1lib >= 5.0.1
 BuildRoot:	%{tmpdir}/%{name}-%{version}-root-%(id -u -n)
@@ -42,7 +42,9 @@ Narzędzia do manipulacji na plikach SWF.
 %{__aclocal} -I m4
 %{__autoconf}
 %configure \
-	--disable-static
+	ac_cv_header_pdflib_h=no \
+	AVIFILE_CONFIG=x
+
 %{__make}
 
 %install
