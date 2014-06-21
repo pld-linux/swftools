@@ -1,0 +1,70 @@
+--- swftools-0.9.2/lib/pdf/BitmapOutputDev.cc.orig	2014-06-21 08:53:04.062950171 +0200
++++ swftools-0.9.2/lib/pdf/BitmapOutputDev.cc	2014-06-21 09:14:39.449589839 +0200
+@@ -998,11 +998,11 @@
+ 
+ void BitmapOutputDev::beginPage(GfxState *state, int pageNum)
+ {
+-    rgbdev->startPage(pageNum, state);
+-    boolpolydev->startPage(pageNum, state);
+-    booltextdev->startPage(pageNum, state);
+-    clip0dev->startPage(pageNum, state);
+-    clip1dev->startPage(pageNum, state);
++    rgbdev->startPage(pageNum, state, NULL);
++    boolpolydev->startPage(pageNum, state, NULL);
++    booltextdev->startPage(pageNum, state, NULL);
++    clip0dev->startPage(pageNum, state, NULL);
++    clip1dev->startPage(pageNum, state, NULL);
+     gfxdev->startPage(pageNum, state);
+ 
+     boolpolybitmap = boolpolydev->getBitmap();
+--- swftools-0.9.2/lib/pdf/FullBitmapOutputDev.cc.orig	2014-06-21 08:53:04.066283501 +0200
++++ swftools-0.9.2/lib/pdf/FullBitmapOutputDev.cc	2014-06-21 09:15:29.096255472 +0200
+@@ -192,7 +192,7 @@
+ void FullBitmapOutputDev::beginPage(GfxState *state, int pageNum)
+ {
+     msg("<debug> startPage");
+-    rgbdev->startPage(pageNum, state);
++    rgbdev->startPage(pageNum, state, NULL);
+     gfxdev->startPage(pageNum, state);
+ }
+ 
+--- swftools-0.9.2/lib/pdf/XMLOutputDev.cc.orig	2014-06-21 08:53:04.072950171 +0200
++++ swftools-0.9.2/lib/pdf/XMLOutputDev.cc	2014-06-21 09:31:00.109569398 +0200
+@@ -46,7 +46,7 @@
+ 
+ void XMLOutputDev::startPage(int pageNum, GfxState *state)
+ {
+-    TextOutputDev::startPage(pageNum, state);
++    TextOutputDev::startPage(pageNum, state, NULL);
+     fprintf(out, "<page nr=\"%d\" width=\"%.0f\" height=\"%.0f\">\n", pageNum,
+ 	state->getPageWidth(), state->getPageHeight());
+ }
+@@ -67,7 +67,7 @@
+     double color_b = -1;
+     for(i=0;i<len;i++) {
+ 	TextWord*word = list->get(i);
+-	GString*newfont = word->getFontName();
++	GString*newfont = word->getFontName(0);
+ 	double newsize = word->getFontSize();
+ #ifdef HAVE_POPPLER
+ 	double newbase = word->getBaseline();
+@@ -87,7 +87,7 @@
+ 	   newcolor_b != color_b
+ 	   ) 
+ 	{
+-	    TextFontInfo*info = word->getFontInfo();
++	    TextFontInfo*info = word->getFontInfo(0);
+ 	    if(textTag)
+ 		fprintf(out, "</t>\n");
+ 	    textTag = 1;
+--- swftools-0.9.2/lib/pdf/pdf.cc.orig	2014-06-21 10:48:46.916138792 +0200
++++ swftools-0.9.2/lib/pdf/pdf.cc	2014-06-21 10:48:54.919471960 +0200
+@@ -375,7 +375,7 @@
+     else if(!strcmp(name, "creationdate")) return getInfoDate(i->docinfo.getDict(), "CreationDate");
+     else if(!strcmp(name, "moddate")) return getInfoDate(i->docinfo.getDict(), "ModDate");
+     else if(!strcmp(name, "linearized")) return strdup(i->doc->isLinearized() ? "yes" : "no");
+-    else if(!strcmp(name, "tagged")) return strdup(i->doc->getStructTreeRoot()->isDict() ? "yes" : "no");
++    else if(!strcmp(name, "tagged")) return strdup((i->doc->getCatalog()->getMarkInfo() & Catalog::markInfoMarked) ? "yes" : "no");
+     else if(!strcmp(name, "encrypted")) return strdup(i->doc->isEncrypted() ? "yes" : "no");
+     else if(!strcmp(name, "oktoprint")) return strdup(i->doc->okToPrint() ? "yes" : "no");
+     else if(!strcmp(name, "oktocopy")) return strdup(i->doc->okToCopy() ? "yes" : "no");

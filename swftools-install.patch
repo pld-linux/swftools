@@ -1,0 +1,16 @@
+--- swftools-0.9.2/swfs/Makefile.in.orig	2012-04-08 19:25:26.000000000 +0200
++++ swftools-0.9.2/swfs/Makefile.in	2014-06-21 17:55:24.215605265 +0200
+@@ -41,9 +41,9 @@
+ 	$(INSTALL_DATA) ./PreLoaderTemplate.swf $(pkgdatadir)/swfs/PreLoaderTemplate.swf
+ 	$(INSTALL_DATA) ./tessel_loader.swf $(pkgdatadir)/swfs/tessel_loader.swf
+ 	$(INSTALL_DATA) ./swft_loader.swf $(pkgdatadir)/swfs/swft_loader.swf
+-	rm -f $(pkgdatadir)/swfs/default_viewer.swf -o -L $(pkgdatadir)/swfs/default_viewer.swf
+-	$(LN_S) $(pkgdatadir)/swfs/simple_viewer.swf $(pkgdatadir)/swfs/default_viewer.swf
+-	rm -f $(pkgdatadir)/swfs/default_loader.swf -o -L $(pkgdatadir)/swfs/default_loader.swf
+-	$(LN_S) $(pkgdatadir)/swfs/tessel_loader.swf $(pkgdatadir)/swfs/default_loader.swf
++	rm -f $(pkgdatadir)/swfs/default_viewer.swf
++	$(LN_S) simple_viewer.swf $(pkgdatadir)/swfs/default_viewer.swf
++	rm -f $(pkgdatadir)/swfs/default_loader.swf
++	$(LN_S) tessel_loader.swf $(pkgdatadir)/swfs/default_loader.swf
+ 		
+ uninstall:

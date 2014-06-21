@@ -1,25 +1,32 @@
 Summary:	Utilities for SWF files manipulation
 Summary(pl.UTF-8):	Narzędzia do manipulacji na plikach SWF
 Name:		swftools
-Version:	0.9.1
-Release:	2
-License:	GPL
+Version:	0.9.2
+Release:	1
+License:	GPL v2+
 Group:		Applications/Graphics
+#Source0Download: http://www.swftools.org/download.html
 Source0:	http://www.swftools.org/%{name}-%{version}.tar.gz
-# Source0-md5:	72dc4a7bf5cdf98c28f9cf9b1d8f5d7a
+# Source0-md5:	1055ebbe3b4cadcc71e83775a5a0906d
 Patch0:		%{name}-swfstrings-print_unknown_chars.patch
 Patch1:		%{name}-missing-m4.patch
+Patch2:		%{name}-giflib.patch
+Patch3:		%{name}-poppler.patch
+Patch4:		%{name}-poppler2.patch
+Patch5:		%{name}-install.patch
 URL:		http://www.swftools.org/
 BuildRequires:	autoconf
 BuildRequires:	automake
 BuildRequires:	fftw3-devel
 BuildRequires:	fontconfig-devel
 BuildRequires:	freetype-devel
-BuildRequires:	giflib-devel
+BuildRequires:	giflib-devel >= 5.1
 BuildRequires:	lame-libs-devel
 BuildRequires:	libjpeg-devel
 BuildRequires:	libstdc++-devel
 BuildRequires:	libtool
+BuildRequires:	poppler-devel
+BuildRequires:	t1lib-devel >= 5.0.1
 BuildRequires:	zlib-devel
 BuildRequires:	zziplib-devel
 Requires:	fonts-Type1-urw
@@ -36,6 +43,10 @@ Narzędzia do manipulacji na plikach SWF.
 %setup -q
 %patch0 -p1
 %patch1 -p1
+%patch2 -p1
+%patch3 -p1
+%patch4 -p1
+%patch5 -p1
 
 %build
 %{__libtoolize}
@@ -43,7 +54,9 @@ Narzędzia do manipulacji na plikach SWF.
 %{__autoconf}
 %configure \
 	ac_cv_header_pdflib_h=no \
-	AVIFILE_CONFIG=x
+	AVIFILE_CONFIG=x \
+	POPPLER_CFLAGS="-I/usr/include/poppler" \
+	--enable-poppler
 
 %{__make}
 
@@ -55,14 +68,6 @@ rm -rf $RPM_BUILD_ROOT
 	libdir=$RPM_BUILD_ROOT%{_libdir} \
 	mandir=$RPM_BUILD_ROOT%{_mandir} \
 	datadir=$RPM_BUILD_ROOT%{_datadir}
-
-# fix broken .swf symlinks
-rm -f $RPM_BUILD_ROOT%{_datadir}/swftools/swfs/default_*
-ln -sf tessel_loader.swf $RPM_BUILD_ROOT%{_datadir}/swftools/swfs/default_loader.swf
-ln -sf simple_viewer.swf $RPM_BUILD_ROOT%{_datadir}/swftools/swfs/default_viewer.swf
-
-# no -devel package, shut up check-files
-rm -f $RPM_BUILD_ROOT%{_libdir}/lib*.{la,so}
 
 %clean
 rm -rf $RPM_BUILD_ROOT

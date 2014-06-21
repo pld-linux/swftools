@@ -1,0 +1,1279 @@
+From git://people.freedesktop.org/~carlosgc/swftools ; git diff master xpdf303
+diff --git a/config.h.in b/config.h.in
+index 0ec7fb9..51fe5a3 100644
+--- a/config.h.in
++++ b/config.h.in
+@@ -266,6 +266,7 @@
+ #ifdef HAVE_POPPLER
+ #define GString GooString
+ #define GHash GooHash
++#define GHashIter GooHashIter
+ #endif
+ 
+ #ifdef HAVE_ZZIP_LIB_H
+diff --git a/configure.in b/configure.in
+index 8b04d6f..7895338 100644
+--- a/configure.in
++++ b/configure.in
+@@ -331,7 +331,7 @@ xpdf_include=
+ 
+ if test "x$USE_POPPLER" = "xtrue"; then
+     AC_DEFINE([HAVE_POPPLER],[1],[use poppler])
+-    #PKG_CHECK_MODULES([POPPLER],[poppler poppler-splash],,[poppler_pkgconfig=no])
++    PKG_CHECK_MODULES([POPPLER],[poppler >= 0.20.0 poppler-splash >= 0.20.0],,[poppler_pkgconfig=no])
+     if test "x$poppler_pkgconfig" = "xno"; then
+         AC_LANG_PUSH([C++])
+         AC_CHECK_HEADERS([OutputDev.h],[
+diff --git a/lib/pdf/BitmapOutputDev.cc b/lib/pdf/BitmapOutputDev.cc
+index 7b175b3..11fa842 100644
+--- a/lib/pdf/BitmapOutputDev.cc
++++ b/lib/pdf/BitmapOutputDev.cc
+@@ -23,10 +23,12 @@
+ #include <assert.h>
+ #include "BitmapOutputDev.h"
+ #include "CharOutputDev.h"
++#include "GFXSplashOutputDev.h"
+ 
+ #ifdef HAVE_POPPLER
+   #include "splash/SplashBitmap.h"
+   #include "splash/SplashPattern.h"
++  #include "splash/SplashGlyphBitmap.h"
+   #include "splash/Splash.h"
+ #else
+   #include "xpdf/config.h"
+@@ -70,28 +72,28 @@ BitmapOutputDev::BitmapOutputDev(InfoOutputDev*info, PDFDoc*doc, int*page2page,
+     this->xref = doc->getXRef();
+     
+     /* color graphic output device, for creating bitmaps */
+-    this->rgbdev = new SplashOutputDev(splashModeRGB8, 1, gFalse, splash_white, gTrue, gTrue);
++    this->rgbdev = new GFXSplashOutputDev(splashModeRGB8, 1, gFalse, splash_white, gTrue, gTrue);
+   
+     /* color mode for binary bitmaps */
+     SplashColorMode colorMode = splashModeMono1;
+ 
+     /* two devices for testing things against clipping: one clips, the other doesn't */
+-    this->clip0dev = new SplashOutputDev(colorMode, 1, gFalse, splash_black, gTrue, gFalse);
+-    this->clip1dev = new SplashOutputDev(colorMode, 1, gFalse, splash_black, gTrue, gFalse);
++    this->clip0dev = new GFXSplashOutputDev(colorMode, 1, gFalse, splash_black, gTrue, gFalse);
++    this->clip1dev = new GFXSplashOutputDev(colorMode, 1, gFalse, splash_black, gTrue, gFalse);
+     
+     /* device indicating where polygonal pixels were drawn */
+-    this->boolpolydev = new SplashOutputDev(colorMode, 1, gFalse, splash_black, gTrue, gFalse);
++    this->boolpolydev = new GFXSplashOutputDev(colorMode, 1, gFalse, splash_black, gTrue, gFalse);
+     /* device indicating where text pixels were drawn */
+-    this->booltextdev = new SplashOutputDev(colorMode, 1, gFalse, splash_black, gTrue, gFalse);
++    this->booltextdev = new GFXSplashOutputDev(colorMode, 1, gFalse, splash_black, gTrue, gFalse);
+ 
+     /* device for handling texts and links */
+     this->gfxdev = new CharOutputDev(info, this->doc, page2page, num_pages, x, y, x1, y1, x2, y2);
+ 
+-    this->rgbdev->startDoc(this->xref);
+-    this->boolpolydev->startDoc(this->xref);
+-    this->booltextdev->startDoc(this->xref);
+-    this->clip0dev->startDoc(this->xref);
+-    this->clip1dev->startDoc(this->xref);
++    this->rgbdev->startDoc(POPPLER_STARTDOC_ARG);
++    this->boolpolydev->startDoc(POPPLER_STARTDOC_ARG);
++    this->booltextdev->startDoc(POPPLER_STARTDOC_ARG);
++    this->clip0dev->startDoc(POPPLER_STARTDOC_ARG);
++    this->clip1dev->startDoc(POPPLER_STARTDOC_ARG);
+ 
+     this->gfxoutput_string = device_new_record();
+     this->gfxoutput = device_new_record();
+@@ -153,14 +155,6 @@ BitmapOutputDev::~BitmapOutputDev()
+ 
+ }
+ 
+-GBool BitmapOutputDev::getVectorAntialias()
+-{
+-    return this->rgbdev->getVectorAntialias();
+-}
+-void BitmapOutputDev::setVectorAntialias(GBool vaa)
+-{
+-    this->rgbdev->setVectorAntialias(vaa);
+-}
+ void BitmapOutputDev::setDevice(gfxdevice_t*dev)
+ {
+     this->dev = dev;
+@@ -188,8 +182,8 @@ void BitmapOutputDev::flushBitmap()
+     int bitmap_width = rgbdev->getBitmapWidth();
+     int bitmap_height = rgbdev->getBitmapHeight();
+ 
+-    if(sizeof(SplashColor)!=3) {
+-	msg("<error> sizeof(SplashColor)!=3");
++    if(sizeof(SplashColor)<3) {
++	msg("<error> sizeof(SplashColor)<3");
+ 	return;
+     }
+ 
+@@ -992,9 +986,10 @@ GBool BitmapOutputDev::intersection(SplashBitmap*boolpoly, SplashBitmap*booltext
+ GBool BitmapOutputDev::checkPageSlice(Page *page, double hDPI, double vDPI,
+              int rotate, GBool useMediaBox, GBool crop,
+              int sliceX, int sliceY, int sliceW, int sliceH,
+-             GBool printing, Catalog *catalog,
++             GBool printing,
+              GBool (*abortCheckCbk)(void *data),
+-             void *abortCheckCbkData)
++             void *abortCheckCbkData
++             POPPLER_CHECK_PAGE_SLICE_ANNOT_CBK POPPLER_CHECK_PAGE_SLICE_ANNOT_CBK_DATA)
+ {
+     this->setPage(page);
+     gfxdev->setPage(page);
+@@ -1084,13 +1079,13 @@ GBool BitmapOutputDev::useTilingPatternFill()
+     return rgbdev->useTilingPatternFill();
+ }
+ 
+-GBool BitmapOutputDev::useShadedFills()
++GBool BitmapOutputDev::useShadedFills(POPPLER_SHADED_FILL_TYPE)
+ {
+-    boolpolydev->useShadedFills();
+-    booltextdev->useShadedFills();
+-    clip0dev->useShadedFills();
+-    clip1dev->useShadedFills();
+-    return rgbdev->useShadedFills();
++    boolpolydev->useShadedFills(POPPLER_SHADED_FILL_TYPE_ARG);
++    booltextdev->useShadedFills(POPPLER_SHADED_FILL_TYPE_ARG);
++    clip0dev->useShadedFills(POPPLER_SHADED_FILL_TYPE_ARG);
++    clip1dev->useShadedFills(POPPLER_SHADED_FILL_TYPE_ARG);
++    return rgbdev->useShadedFills(POPPLER_SHADED_FILL_TYPE_ARG);
+ }
+ 
+ GBool BitmapOutputDev::useDrawForm()
+@@ -1507,17 +1502,19 @@ void BitmapOutputDev::eoFill(GfxState *state)
+     dbg_newdata("eofill");
+ }
+ 
+-POPPLER_TILING_PATERN_RETURN BitmapOutputDev::tilingPatternFill(GfxState *state, POPPLER_TILING_PATERN_GFX Object *str,
+-			       int paintType, Dict *resDict,
++POPPLER_TILING_PATERN_RETURN BitmapOutputDev::tilingPatternFill(GfxState *state, Gfx *gfx, POPPLER_TILING_PATTERN_CATALOG Object *str,
++			       POPPLER_TILING_PATTERN_PMAT int paintType, POPPLER_TILING_PATTERN_TILING_TYPE Dict *resDict,
+ 			       double *mat, double *bbox,
+ 			       int x0, int y0, int x1, int y1,
+ 			       double xStep, double yStep) 
+ {
+     msg("<debug> tilingPatternFill");
+-    boolpolydev->tilingPatternFill(state, POPPLER_TILING_PATERN_GFX_ARG str, paintType, resDict, mat,
++    boolpolydev->tilingPatternFill(state, gfx, POPPLER_TILING_PATTERN_CATALOG_ARG str, POPPLER_TILING_PATTERN_PMAT_ARG paintType,
++                                   POPPLER_TILING_PATTERN_TILING_TYPE_ARG resDict, mat,
+                                    bbox, x0, y0, x1, y1, xStep, yStep);
+     checkNewBitmap(UNKNOWN_BOUNDING_BOX);
+-    rgbdev->tilingPatternFill(state, POPPLER_TILING_PATERN_GFX_ARG str, paintType, resDict, mat,
++    rgbdev->tilingPatternFill(state, gfx, POPPLER_TILING_PATTERN_CATALOG_ARG str, POPPLER_TILING_PATTERN_PMAT_ARG paintType,
++                              POPPLER_TILING_PATTERN_TILING_TYPE_ARG resDict, mat,
+                               bbox, x0, y0, x1, y1, xStep, yStep);
+     dbg_newdata("tilingpatternfill");
+ #ifdef HAVE_POPPLER
+@@ -1615,7 +1612,7 @@ void BitmapOutputDev::clearBoolTextDev()
+ 
+ #define USE_GETGLYPH_BBOX
+ 
+-static void getGlyphBbox(GfxState*state, SplashOutputDev*splash, double x, double y, double originX, double originY, CharCode code, int*_x1, int*_y1, int*_x2, int*_y2)
++static void getGlyphBbox(GfxState*state, GFXSplashOutputDev*splash, double x, double y, double originX, double originY, CharCode code, int*_x1, int*_y1, int*_x2, int*_y2)
+ {
+ #ifdef USE_GETGLYPH_BBOX
+     /* use getglyph to derive bounding box */
+@@ -1634,7 +1631,14 @@ static void getGlyphBbox(GfxState*state, SplashOutputDev*splash, double x, doubl
+ 
+     SplashCoord*matrix = font->getMatrix();
+ 
+-    if(font && font->getGlyph(code, xFrac, yFrac, &glyph)) {
++#ifdef HAVE_POPPLER
++    double clipx1, clipy1, clipx2, clipy2;
++    state->getClipBBox(&clipx1, &clipy1, &clipx2, &clipy2);
++    SplashClip clip(clipx1, clipy1, clipx2, clipy2, gFalse);
++    SplashClipResult clipRes;
++#endif
++
++    if(font && font->getGlyph(code, xFrac, yFrac, &glyph POPPLER_GET_GLYPH_ARGS)) {
+         x1 = floor(x0-glyph.x);
+         y1 = floor(y0-glyph.y);
+         x2 = ceil(x0-glyph.x+glyph.w);
+@@ -1648,7 +1652,7 @@ static void getGlyphBbox(GfxState*state, SplashOutputDev*splash, double x, doubl
+     double x0,y0;
+     state->transform(x-originX,y-originY,&x0,&y0);
+     int x1 = (int)x0, x2 = (int)x0+1, y1 = (int)y0, y2 = (int)y0+1;
+-    SplashFont*font = clip0dev->getCurrentFont();
++    SplashFont*font = splash->getCurrentFont();
+     SplashPath*path = font?font->getGlyphPath(code):NULL;
+     if(path) {
+         path->offset((SplashCoord)x, (SplashCoord)y);
+@@ -1980,10 +1984,10 @@ void BitmapOutputDev::drawForm(Ref id)
+     rgbdev->drawForm(id);
+ }
+ 
+-void BitmapOutputDev::processLink(Link *link, Catalog *catalog)
++void BitmapOutputDev::processLink(Link *link)
+ {
+     msg("<debug> processLink");
+-    gfxdev->processLink(link, catalog);
++    gfxdev->processLink(link);
+ }
+ void BitmapOutputDev::flushEverything()
+ {
+diff --git a/lib/pdf/BitmapOutputDev.h b/lib/pdf/BitmapOutputDev.h
+index 3644a0e..1ad7ec6 100644
+--- a/lib/pdf/BitmapOutputDev.h
++++ b/lib/pdf/BitmapOutputDev.h
+@@ -27,6 +27,7 @@
+ #include "../../config.h"
+ #include "CharOutputDev.h"
+ #include "InfoOutputDev.h"
++#include "GFXSplashOutputDev.h"
+ #include "PDFDoc.h"
+ #include "CommonOutputDev.h"
+ #include "popplercompat.h"
+@@ -58,7 +59,7 @@ public:
+     virtual GBool upsideDown();
+     virtual GBool useDrawChar();
+     virtual GBool useTilingPatternFill();
+-    virtual GBool useShadedFills();
++    virtual GBool useShadedFills(POPPLER_SHADED_FILL_TYPE);
+     virtual GBool useDrawForm();
+     virtual GBool interpretType3Chars();
+     virtual GBool needNonText();
+@@ -66,9 +67,11 @@ public:
+     virtual GBool checkPageSlice(Page *page, double hDPI, double vDPI,
+ 			       int rotate, GBool useMediaBox, GBool crop,
+ 			       int sliceX, int sliceY, int sliceW, int sliceH,
+-			       GBool printing, Catalog *catalog,
++			       GBool printing,
+ 			       GBool (*abortCheckCbk)(void *data) = NULL,
+-			       void *abortCheckCbkData = NULL);
++			       void *abortCheckCbkData = NULL
++                               POPPLER_CHECK_PAGE_SLICE_ANNOT_CBK_H
++                               POPPLER_CHECK_PAGE_SLICE_ANNOT_CBK_DATA_H);
+ 
+     virtual void beginPage(GfxState *state, int pageNum);
+     virtual void endPage();
+@@ -110,8 +113,9 @@ public:
+     virtual void fill(GfxState *state);
+     virtual void eoFill(GfxState *state);
+     virtual POPPLER_TILING_PATERN_RETURN tilingPatternFill(
+-             GfxState *state, POPPLER_TILING_PATERN_GFX Object *str,
+-			       int paintType, Dict *resDict,
++                               GfxState *state, Gfx *gfx, POPPLER_TILING_PATTERN_CATALOG Object *str,
++                               POPPLER_TILING_PATTERN_PMAT
++			       int paintType, POPPLER_TILING_PATTERN_TILING_TYPE Dict *resDict,
+ 			       double *mat, double *bbox,
+ 			       int x0, int y0, int x1, int y1,
+ 			       double xStep, double yStep);
+@@ -178,12 +182,9 @@ public:
+     virtual void setSoftMask(GfxState *state, double *bbox, GBool alpha, Function *transferFunc, GfxColor *backdropColor);
+     virtual void clearSoftMask(GfxState *state);
+ 
+-    virtual void processLink(Link *link, Catalog *catalog);
++    virtual void processLink(Link *link);
+   
+-    virtual void setVectorAntialias(GBool vaa);
+-    virtual GBool getVectorAntialias();
+ 
+-    
+ private:
+     void flushEverything();
+     void clearClips(int x1, int y1, int x2, int y2);
+@@ -211,11 +212,11 @@ private:
+ 
+     SplashPath*bboxpath;
+ 
+-    SplashOutputDev*rgbdev;
+-    SplashOutputDev*clip0dev;
+-    SplashOutputDev*clip1dev;
+-    SplashOutputDev*boolpolydev;
+-    SplashOutputDev*booltextdev;
++    GFXSplashOutputDev*rgbdev;
++    GFXSplashOutputDev*clip0dev;
++    GFXSplashOutputDev*clip1dev;
++    GFXSplashOutputDev*boolpolydev;
++    GFXSplashOutputDev*booltextdev;
+ 
+     SplashBitmap*rgbbitmap;
+     SplashBitmap*clip0bitmap;
+diff --git a/lib/pdf/CharOutputDev.cc b/lib/pdf/CharOutputDev.cc
+index cd7ceff..2e6fd1a 100644
+--- a/lib/pdf/CharOutputDev.cc
++++ b/lib/pdf/CharOutputDev.cc
+@@ -83,7 +83,6 @@ struct fontentry {
+     char*pfb;
+     int pfblen;
+     char*fullfilename;
+-    DisplayFontParam *dfp;
+ } pdf2t1map[] ={
+ {"Times-Roman",           "n021003l", n021003l_afm, n021003l_afm_len, n021003l_pfb, n021003l_pfb_len},
+ {"Times-Italic",          "n021023l", n021023l_afm, n021023l_afm_len, n021023l_pfb, n021023l_pfb_len},
+@@ -198,6 +197,7 @@ void unlinkfont(char* filename)
+     }
+ }
+ 
++#ifndef HAVE_POPPLER
+ static int config_use_fontconfig = 1;
+ static int fcinitcalled = 0; 
+ 
+@@ -424,16 +424,7 @@ char* fontconfig_searchForFont(char*name)
+ #endif
+ }
+ 
+-static DisplayFontParamKind detectFontType(const char*filename)
+-{
+-    if(strstr(filename, ".ttf") || strstr(filename, ".TTF"))
+-	return displayFontTT;
+-    if(strstr(filename, ".pfa") || strstr(filename, ".PFA") || strstr(filename, ".pfb"))
+-	return displayFontT1;
+-    return displayFontTT;
+-}
+-
+-DisplayFontParam *GFXGlobalParams::getDisplayFont(GString *fontName)
++GString *GFXGlobalParams::findFontFile(GString *fontName)
+ {
+     msg("<verbose> looking for font %s", fontName->getCString());
+ 
+@@ -450,11 +441,8 @@ DisplayFontParam *GFXGlobalParams::getDisplayFont(GString *fontName)
+ 		} else {
+ 		    msg("<verbose> Storing standard PDF font %s at %s", name, pdf2t1map[t].fullfilename);
+ 		}
+-		DisplayFontParam *dfp = new DisplayFontParam(new GString(fontName), displayFontT1);
+-		dfp->t1.fileName = new GString(pdf2t1map[t].fullfilename);
+-		pdf2t1map[t].dfp = dfp;
+ 	    }
+-	    return pdf2t1map[t].dfp;
++            return pdf2t1map[t].fullfilename ? new GString(pdf2t1map[t].fullfilename) : NULL;
+ 	}
+     }
+     
+@@ -485,30 +473,16 @@ DisplayFontParam *GFXGlobalParams::getDisplayFont(GString *fontName)
+     }
+ 
+     if(filename) {
++        GString*retval = new GString(filename);
+         msg("<verbose> Font %s maps to %s\n", name, filename);
+-	DisplayFontParamKind kind = detectFontType(filename);
+-        DisplayFontParam *dfp = new DisplayFontParam(new GString(fontName), kind);
+-	if(kind == displayFontTT) {
+-	    dfp->tt.fileName = new GString(filename);
+-	} else {
+-	    dfp->t1.fileName = new GString(filename);
+-	}
+-	free(filename);
+-        return dfp;
++        free(filename);
++        return retval;
+     } else {
+ 	msg("<verbose> Font %s not found\n", name);
+-	return GlobalParams::getDisplayFont(fontName);
+-    }
+-}
+-
+-DisplayFontParam *GFXGlobalParams::getDisplayCIDFont(GString *fontName, GString *collection)
+-{
+-    DisplayFontParam*dfp = GlobalParams::getDisplayCIDFont(fontName, collection);
+-    if(!dfp) {
+-        dfp = this->getDisplayFont(fontName);
++        return GlobalParams::findFontFile(fontName);
+     }
+-    return dfp;
+ }
++#endif // HAVE_POPPLER
+ 
+ CharOutputDev::CharOutputDev(InfoOutputDev*info, PDFDoc*doc, int*page2page, int num_pages, int x, int y, int x1, int y1, int x2, int y2)
+ :CommonOutputDev(info, doc, page2page, num_pages, x, y, x1, y1, x2, y2)
+@@ -652,7 +626,7 @@ static void dumpFontInfo(const char*loglevel, GfxFont*font)
+   if(embedded)
+    msg("%s| Embedded id: %s id: %d",loglevel, FIXNULL(embeddedName), embRef.num);
+ 
+-  gstr = font->getExtFontFile();
++  gstr = globalParams->findFontFile(font->getName());
+   if(gstr)
+    msg("%s| External Font file: %s", loglevel, FIXNULL(gstr->getCString()));
+ 
+@@ -1046,7 +1020,7 @@ GFXLink::~GFXLink()
+ }
+ 
+ 
+-void CharOutputDev::processLink(Link *link, Catalog *catalog)
++void CharOutputDev::processLink(Link *link)
+ {
+     double x1, y1, x2, y2;
+     
+@@ -1068,13 +1042,13 @@ void CharOutputDev::processLink(Link *link, Catalog *catalog)
+             LinkGoTo *ha=(LinkGoTo *)link->getAction();
+             LinkDest *dest=NULL;
+             if (ha->getDest()==NULL) 
+-                dest=catalog->findDest(ha->getNamedDest());
++                dest=this->doc->findDest(ha->getNamedDest());
+             else 
+                 dest=ha->getDest()->copy();
+             if (dest){ 
+               if (dest->isPageRef()){
+                 Ref pageref=dest->getPageRef();
+-                page=catalog->findPage(pageref.num,pageref.gen);
++                page=this->doc->findPage(pageref.num,pageref.gen);
+               }
+               else  page=dest->getPageNum();
+               sprintf(buf, "%d", page);
+diff --git a/lib/pdf/CharOutputDev.h b/lib/pdf/CharOutputDev.h
+index 0801090..86124db 100644
+--- a/lib/pdf/CharOutputDev.h
++++ b/lib/pdf/CharOutputDev.h
+@@ -33,7 +33,7 @@ public:
+   virtual GBool upsideDown();
+   virtual GBool useDrawChar();
+ 
+-  virtual void processLink(Link *link, Catalog *catalog);
++  virtual void processLink(Link *link);
+   virtual void saveState(GfxState *state) ;
+   virtual void restoreState(GfxState *state) ;
+ 
+@@ -108,12 +108,13 @@ class GFXLink {
+     ~GFXLink();
+ };
+ 
++#ifndef HAVE_POPPLER
+ class GFXGlobalParams:  public GlobalParams {
+     public:
+     GFXGlobalParams();
+     ~GFXGlobalParams();
+-    virtual DisplayFontParam *getDisplayFont(GString *fontName);
+-    virtual DisplayFontParam *getDisplayCIDFont(GString *fontName, GString *collection);
++    virtual GString *findFontFile(GString *fontName);
+ };
++#endif
+ 
+ #endif //__charoutputdev_h__
+diff --git a/lib/pdf/CommonOutputDev.h b/lib/pdf/CommonOutputDev.h
+index db2f4d8..ae10d7c 100644
+--- a/lib/pdf/CommonOutputDev.h
++++ b/lib/pdf/CommonOutputDev.h
+@@ -80,7 +80,9 @@ class CommonOutputDev: public OutputDev
+ 			       int sliceX, int sliceY, int sliceW, int sliceH,
+ 			       GBool printing, Catalog *catalog,
+ 			       GBool (*abortCheckCbk)(void *data) = NULL,
+-			       void *abortCheckCbkData = NULL)
++			       void *abortCheckCbkData = NULL
++                               POPPLER_CHECK_PAGE_SLICE_ANNOT_CBK_H
++                               POPPLER_CHECK_PAGE_SLICE_ANNOT_CBK_DATA_H)
+     {
+         this->setPage(page);
+         return gTrue;
+#diff --git a/lib/pdf/DummyOutputDev.cc b/lib/pdf/DummyOutputDev.cc
+#index a89b5c7..6ad7608 100644
+#--- a/lib/pdf/DummyOutputDev.cc
+#+++ b/lib/pdf/DummyOutputDev.cc
+#@@ -64,9 +64,9 @@ GBool DummyOutputDev::useTilingPatternFill()
+#     return rgbdev->useTilingPatternFill();
+# }
+# 
+#-GBool DummyOutputDev::useShadedFills()
+#+GBool DummyOutputDev::useShadedFills(POPPLER_SHADED_FILL_TYPE)
+# {
+#-    return rgbdev->useShadedFills();
+#+    return rgbdev->useShadedFills(POPPLER_SHADED_FILL_TYPE_ARG);
+# }
+# 
+# GBool DummyOutputDev::useDrawForm()
+#@@ -348,7 +348,7 @@ void DummyOutputDev::drawForm(Ref id)
+#     rgbdev->drawForm(id);
+# }
+# 
+#-void DummyOutputDev::processLink(Link *link, Catalog *catalog)
+#+void DummyOutputDev::processLink(Link *link)
+# {
+# }
+# 
+#diff --git a/lib/pdf/DummyOutputDev.h b/lib/pdf/DummyOutputDev.h
+#index ca831a8..6cc0519 100644
+#--- a/lib/pdf/DummyOutputDev.h
+#+++ b/lib/pdf/DummyOutputDev.h
+#@@ -41,7 +41,7 @@ public:
+#     virtual GBool upsideDown();
+#     virtual GBool useDrawChar();
+#     virtual GBool useTilingPatternFill();
+#-    virtual GBool useShadedFills();
+#+    virtual GBool useShadedFills(POPPLER_SHADED_FILL_TYPE);
+#     virtual GBool useDrawForm();
+#     virtual GBool interpretType3Chars();
+#     virtual GBool needNonText();
+#@@ -161,7 +161,7 @@ public:
+#     virtual void setSoftMask(GfxState *state, double *bbox, GBool alpha, Function *transferFunc, GfxColor *backdropColor);
+#     virtual void clearSoftMask(GfxState *state);
+# 
+#-    virtual void processLink(Link *link, Catalog *catalog);
+#+    virtual void processLink(Link *link);
+#     
+#     OutputDev*rgbdev;
+# private:
+diff --git a/lib/pdf/FullBitmapOutputDev.cc b/lib/pdf/FullBitmapOutputDev.cc
+index 8faaa0b..b9efc8e 100644
+--- a/lib/pdf/FullBitmapOutputDev.cc
++++ b/lib/pdf/FullBitmapOutputDev.cc
+@@ -54,7 +54,7 @@ FullBitmapOutputDev::FullBitmapOutputDev(InfoOutputDev*info, PDFDoc*doc, int*pag
+     /* device for handling links */
+     this->gfxdev = new CharOutputDev(info, this->doc, page2page, num_pages, x, y, x1, y1, x2, y2);
+ 
+-    this->rgbdev->startDoc(this->xref);
++    this->rgbdev->startDoc(POPPLER_STARTDOC_ARG);
+ }
+ FullBitmapOutputDev::~FullBitmapOutputDev()
+ {
+@@ -66,14 +66,6 @@ FullBitmapOutputDev::~FullBitmapOutputDev()
+     }
+ }
+ 
+-GBool FullBitmapOutputDev::getVectorAntialias()
+-{
+-    return this->rgbdev->getVectorAntialias();
+-}
+-void FullBitmapOutputDev::setVectorAntialias(GBool vaa)
+-{
+-    this->rgbdev->setVectorAntialias(vaa);
+-}
+ void FullBitmapOutputDev::setDevice(gfxdevice_t*dev)
+ {
+     this->dev = dev;
+@@ -138,8 +130,8 @@ void FullBitmapOutputDev::flushBitmap()
+     if((xmax-xmin)<=0 || (ymax-ymin)<=0) // no bitmap, nothing to do
+ 	return;
+ 
+-    if(sizeof(SplashColor)!=3) {
+-	msg("<error> sizeof(SplashColor)!=3");
++    if(sizeof(SplashColor)<3) {
++	msg("<error> sizeof(SplashColor)<3");
+ 	return;
+     }
+     //xmin = ymin = 0;
+@@ -187,9 +179,10 @@ void FullBitmapOutputDev::flushBitmap()
+ GBool FullBitmapOutputDev::checkPageSlice(Page *page, double hDPI, double vDPI,
+              int rotate, GBool useMediaBox, GBool crop,
+              int sliceX, int sliceY, int sliceW, int sliceH,
+-             GBool printing, Catalog *catalog,
++             GBool printing,
+              GBool (*abortCheckCbk)(void *data),
+-             void *abortCheckCbkData)
++             void *abortCheckCbkData
++             POPPLER_CHECK_PAGE_SLICE_ANNOT_CBK POPPLER_CHECK_PAGE_SLICE_ANNOT_CBK_DATA)
+ {
+     this->setPage(page);
+     gfxdev->setPage(page);
+@@ -222,9 +215,9 @@ GBool FullBitmapOutputDev::useTilingPatternFill()
+ {
+     return rgbdev->useTilingPatternFill();
+ }
+-GBool FullBitmapOutputDev::useShadedFills()
++GBool FullBitmapOutputDev::useShadedFills(POPPLER_SHADED_FILL_TYPE)
+ {
+-    return rgbdev->useShadedFills();
++    return rgbdev->useShadedFills(POPPLER_SHADED_FILL_TYPE_ARG);
+ }
+ GBool FullBitmapOutputDev::useDrawForm()
+ {
+@@ -380,18 +373,20 @@ void FullBitmapOutputDev::eoFill(GfxState *state)
+     msg("<debug> eoFill");
+     rgbdev->eoFill(state);
+ }
+-POPPLER_TILING_PATERN_RETURN FullBitmapOutputDev::tilingPatternFill(GfxState *state, POPPLER_TILING_PATERN_GFX
+-             Object *str,
+-			       int paintType, Dict *resDict,
++POPPLER_TILING_PATERN_RETURN FullBitmapOutputDev::tilingPatternFill(GfxState *state, Gfx *gfx,
++                               POPPLER_TILING_PATTERN_CATALOG Object *str,
++                               POPPLER_TILING_PATTERN_PMAT
++			       int paintType, POPPLER_TILING_PATTERN_TILING_TYPE Dict *resDict,
+ 			       double *mat, double *bbox,
+ 			       int x0, int y0, int x1, int y1,
+ 			       double xStep, double yStep)
+ {
+     msg("<debug> tilingPatternFill");
++    rgbdev->tilingPatternFill(state, gfx, POPPLER_TILING_PATTERN_CATALOG_ARG str, POPPLER_TILING_PATTERN_PMAT_ARG paintType,
++                              POPPLER_TILING_PATTERN_TILING_TYPE_ARG resDict, mat, bbox, x0, y0, x1, y1, xStep, yStep);
+ #ifdef HAVE_POPPLER
+-    return
++    return gTrue;
+ #endif
+-    rgbdev->tilingPatternFill(state, POPPLER_TILING_PATERN_GFX_ARG str, paintType, resDict, mat, bbox, x0, y0, x1, y1, xStep, yStep);
+ }
+ 
+ GBool FullBitmapOutputDev::functionShadedFill(GfxState *state, GfxFunctionShading *shading) 
+@@ -536,10 +531,10 @@ void FullBitmapOutputDev::drawForm(Ref id)
+     rgbdev->drawForm(id);
+ }
+ 
+-void FullBitmapOutputDev::processLink(Link *link, Catalog *catalog)
++void FullBitmapOutputDev::processLink(Link *link)
+ {
+     msg("<debug> processLink");
+-    gfxdev->processLink(link, catalog);
++    gfxdev->processLink(link);
+ }
+ 
+ void FullBitmapOutputDev::beginTransparencyGroup(GfxState *state, double *bbox,
+diff --git a/lib/pdf/FullBitmapOutputDev.h b/lib/pdf/FullBitmapOutputDev.h
+index d9eb543..e9ce21e 100644
+--- a/lib/pdf/FullBitmapOutputDev.h
++++ b/lib/pdf/FullBitmapOutputDev.h
+@@ -47,7 +47,7 @@ public:
+     virtual GBool upsideDown();
+     virtual GBool useDrawChar();
+     virtual GBool useTilingPatternFill();
+-    virtual GBool useShadedFills();
++    virtual GBool useShadedFills(POPPLER_SHADED_FILL_TYPE);
+     virtual GBool useDrawForm();
+     virtual GBool interpretType3Chars();
+     virtual GBool needNonText();
+@@ -55,9 +55,11 @@ public:
+     virtual GBool checkPageSlice(Page *page, double hDPI, double vDPI,
+ 			       int rotate, GBool useMediaBox, GBool crop,
+ 			       int sliceX, int sliceY, int sliceW, int sliceH,
+-			       GBool printing, Catalog *catalog,
++			       GBool printing,
+ 			       GBool (*abortCheckCbk)(void *data) = NULL,
+-			       void *abortCheckCbkData = NULL);
++			       void *abortCheckCbkData = NULL
++                               POPPLER_CHECK_PAGE_SLICE_ANNOT_CBK_H
++                               POPPLER_CHECK_PAGE_SLICE_ANNOT_CBK_DATA_H);
+ 
+     virtual void beginPage(GfxState *state, int pageNum);
+     virtual void endPage();
+@@ -98,8 +100,9 @@ public:
+     virtual void fill(GfxState *state);
+     virtual void eoFill(GfxState *state);
+     virtual POPPLER_TILING_PATERN_RETURN tilingPatternFill(GfxState *state,
+-             POPPLER_TILING_PATERN_GFX Object *str,
+-			       int paintType, Dict *resDict,
++                               Gfx *gfx, POPPLER_TILING_PATTERN_CATALOG Object *str,
++                               POPPLER_TILING_PATTERN_PMAT
++			       int paintType, POPPLER_TILING_PATTERN_TILING_TYPE Dict *resDict,
+ 			       double *mat, double *bbox,
+ 			       int x0, int y0, int x1, int y1,
+ 			       double xStep, double yStep);
+@@ -166,12 +169,9 @@ public:
+     virtual void setSoftMask(GfxState *state, double *bbox, GBool alpha, Function *transferFunc, GfxColor *backdropColor);
+     virtual void clearSoftMask(GfxState *state);
+ 
+-    virtual void processLink(Link *link, Catalog *catalog);
++    virtual void processLink(Link *link);
+   
+-    virtual void setVectorAntialias(GBool vaa);
+-    virtual GBool getVectorAntialias();
+ 
+-    
+ private:
+     void flushBitmap();
+     char config_extrafontdata;
+diff --git a/lib/pdf/GFXSplashOutputDev.h b/lib/pdf/GFXSplashOutputDev.h
+new file mode 100644
+index 0000000..05cf47b
+--- /dev/null
++++ b/lib/pdf/GFXSplashOutputDev.h
+@@ -0,0 +1,58 @@
++/* GFXSplashOutputDev.h
++   Output device derived from SplashOutputDev.
++
++   This file is part of swftools.
++
++   Swftools is free software; you can redistribute it and/or modify
++   it under the terms of the GNU General Public License as published by
++   the Free Software Foundation; either version 2 of the License, or
++   (at your option) any later version.
++
++   Swftools is distributed in the hope that it will be useful,
++   but WITHOUT ANY WARRANTY; without even the implied warranty of
++   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++   GNU General Public License for more details.
++
++   You should have received a copy of the GNU General Public License
++   along with swftools; if not, write to the Free Software
++   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
++
++#ifndef __GFXSplashOutputDev_h__
++#define __GFXSplashOutputDev_h__
++
++#include "SplashOutputDev.h"
++
++#ifdef HAVE_POPPLER
++
++#include "../../config.h"
++#include <splash/SplashTypes.h>
++#include <splash/SplashPath.h>
++#include <splash/SplashFont.h>
++#include <splash/SplashFontFile.h>
++
++class GFXSplashOutputDev: public SplashOutputDev {
++public:
++    GFXSplashOutputDev(SplashColorMode colorModeA, int bitmapRowPadA,
++                       GBool reverseVideoA, SplashColorPtr paperColorA,
++                       GBool bitmapTopDownA = gTrue,
++                       GBool allowAntialiasA = gTrue)
++        : SplashOutputDev(colorModeA, bitmapRowPadA, reverseVideoA, paperColorA, bitmapTopDownA, allowAntialiasA)
++    {
++        needFontUpdate = gFalse;
++    }
++
++    // OutputDev:
++    virtual void restoreState(GfxState *state) { SplashOutputDev::restoreState(state); needFontUpdate = gTrue; }
++
++    virtual void updateAll(GfxState *state) { SplashOutputDev::updateAll(state); needFontUpdate = gTrue; }
++    virtual void updateFont(GfxState *state) { SplashOutputDev::updateFont(state); needFontUpdate = gTrue; }
++
++    // SplashOutputDev:
++    void doUpdateFont(GfxState *state) { SplashOutputDev::doUpdateFont(state); needFontUpdate = gFalse; }
++
++    GBool needFontUpdate;         // set when the font needs to be updated
++};
++
++#endif // HAVE_POPPLER
++
++#endif
+diff --git a/lib/pdf/InfoOutputDev.cc b/lib/pdf/InfoOutputDev.cc
+index edfb7e7..073bf99 100644
+--- a/lib/pdf/InfoOutputDev.cc
++++ b/lib/pdf/InfoOutputDev.cc
+@@ -1,7 +1,7 @@
+ #include "../../config.h"
+ #include "Object.h"
+ #include "InfoOutputDev.h"
+-#include "SplashOutputDev.h"
++#include "GFXSplashOutputDev.h"
+ #include "GfxState.h"
+ #include "CommonOutputDev.h"
+ #include "../log.h"
+@@ -90,7 +90,7 @@ static type_t fontclass_type = {
+     fontclass_destroy
+ };
+ 
+-InfoOutputDev::InfoOutputDev(XRef*xref) 
++InfoOutputDev::InfoOutputDev(PDFDoc*doc)
+ {
+     num_links = 0;
+     num_jpeg_images = 0;
+@@ -103,8 +103,8 @@ InfoOutputDev::InfoOutputDev(XRef*xref)
+     currentglyph = 0;
+     previous_was_char = 0;
+     SplashColor white = {255,255,255};
+-    splash = new SplashOutputDev(splashModeRGB8,320,0,white,0,0);
+-    splash->startDoc(xref);
++    splash = new GFXSplashOutputDev(splashModeRGB8,320,0,white,0,0);
++    splash->startDoc(INFO_OUTPUT_DEV_STARTDOC_ARG);
+     last_font = 0;
+     current_type3_font = 0;
+     fontcache = dict_new2(&fontclass_type);
+@@ -452,9 +452,10 @@ GBool InfoOutputDev::useTilingPatternFill() {return gFalse;}
+ GBool InfoOutputDev::checkPageSlice(Page *page, double hDPI, double vDPI,
+              int rotate, GBool useMediaBox, GBool crop,
+              int sliceX, int sliceY, int sliceW, int sliceH,
+-             GBool printing, Catalog *catalog,
++             GBool printing,
+              GBool (*abortCheckCbk)(void *data),
+-             void *abortCheckCbkData)
++             void *abortCheckCbkData
++             POPPLER_CHECK_PAGE_SLICE_ANNOT_CBK POPPLER_CHECK_PAGE_SLICE_ANNOT_CBK_DATA)
+ {
+     this->page = page;
+     return gTrue;
+@@ -487,7 +488,7 @@ void InfoOutputDev::endPage()
+     if(num_chars) 
+ 	average_char_size /= num_chars;
+ }
+-void InfoOutputDev::drawLink(Link *link, Catalog *catalog) 
++void InfoOutputDev::processLink(Link *link)
+ {
+     num_links++;
+ }
+@@ -568,11 +569,14 @@ void InfoOutputDev::updateFont(GfxState *state)
+ 	current_splash_font = 0;
+ 	return;
+     }
+-    GfxState* state2 = state->copy();
++    GfxState* state2 = state->copy(POPPLER_COPY_STATE_PATH);
+     state2->setPath(0);
+     state2->setCTM(1.0,0,0,1.0,0,0);
+     splash->updateCTM(state2, 0,0,0,0,0,0);
+     state2->setTextMat(1.0,0,0,1.0,0,0);
++#ifdef HAVE_POPPLER
++    font->incRefCnt();
++#endif
+     state2->setFont(font, 1024.0);
+     splash->doUpdateFont(state2);
+ 
+@@ -693,8 +697,12 @@ FontInfo* InfoOutputDev::getOrCreateFontInfo(GfxState*state)
+ 	fontinfo->font = font;
+ 	fontinfo->max_size = 0;
+ 	if(current_splash_font) {
++#ifdef HAVE_POPPLER
++            fontinfo->ascender = fontinfo->descender = 0;
++#else
+ 	    fontinfo->ascender = current_splash_font->ascender;
+ 	    fontinfo->descender = current_splash_font->descender;
++#endif
+ 	} else {
+ 	    fontinfo->ascender = fontinfo->descender = 0;
+ 	}
+@@ -778,9 +786,15 @@ void InfoOutputDev::drawChar(GfxState *state, double x, double y,
+     if(!g) {
+ 	g = fontinfo->glyphs[code] = new GlyphInfo();
+ 	g->advance_max = 0;
++#ifndef HAVE_POPPLER
+ 	current_splash_font->last_advance = -1;
++#endif
+ 	g->path = current_splash_font->getGlyphPath(code);
++#ifdef HAVE_POPPLER
++        g->advance = -1;
++#else
+ 	g->advance = current_splash_font->last_advance;
++#endif
+ 	g->unicode = 0;
+     }
+     if(uLen && ((u[0]>=32 && u[0]<g->unicode) || !g->unicode)) {
+diff --git a/lib/pdf/InfoOutputDev.h b/lib/pdf/InfoOutputDev.h
+index 07fd2e7..d423589 100644
+--- a/lib/pdf/InfoOutputDev.h
++++ b/lib/pdf/InfoOutputDev.h
+@@ -24,7 +24,7 @@
+ #include "popplercompat.h"
+ #include "GfxFont.h"
+ #include "OutputDev.h"
+-#include "SplashOutputDev.h"
++#include "GFXSplashOutputDev.h"
+ #include "Page.h"
+ 
+ #ifdef HAVE_POPPLER
+@@ -116,7 +116,7 @@ extern gfxmatrix_t gfxmatrix_from_state(GfxState*state);
+ class InfoOutputDev: public OutputDev 
+ {
+     GlyphInfo* currentglyph;
+-    SplashOutputDev*splash;
++    GFXSplashOutputDev*splash;
+     char previous_was_char;
+     Page *page;
+ 
+@@ -140,7 +140,7 @@ class InfoOutputDev: public OutputDev
+     void dumpfonts(gfxdevice_t*dev);
+     FontInfo* getFontInfo(GfxState*state);
+ 
+-    InfoOutputDev(XRef*xref);
++    InfoOutputDev(PDFDoc*doc);
+     virtual ~InfoOutputDev(); 
+     virtual GBool useTilingPatternFill();
+     virtual GBool upsideDown();
+@@ -150,12 +150,15 @@ class InfoOutputDev: public OutputDev
+     virtual GBool checkPageSlice(Page *page, double hDPI, double vDPI,
+ 			       int rotate, GBool useMediaBox, GBool crop,
+ 			       int sliceX, int sliceY, int sliceW, int sliceH,
+-			       GBool printing, Catalog *catalog,
++			       GBool printing,
+ 			       GBool (*abortCheckCbk)(void *data) = NULL,
+-			       void *abortCheckCbkData = NULL);
++                               void *abortCheckCbkData = NULL
++                               POPPLER_CHECK_PAGE_SLICE_ANNOT_CBK_H
++                               POPPLER_CHECK_PAGE_SLICE_ANNOT_CBK_DATA_H);
++
+     virtual void startPage(int pageNum, GfxState *state);
+     virtual void endPage();
+-    virtual void drawLink(Link *link, Catalog *catalog);
++    virtual void processLink(Link *link);
+     virtual void updateFont(GfxState *state);
+   
+     virtual void saveState(GfxState *state);
+diff --git a/lib/pdf/Makefile.in b/lib/pdf/Makefile.in
+index 77ff347..45232b8 100644
+--- a/lib/pdf/Makefile.in
++++ b/lib/pdf/Makefile.in
+@@ -15,7 +15,7 @@ libgfxpdf_objects = VectorGraphicOutputDev.$(O) BitmapOutputDev.$(O) FullBitmapO
+ xpdf_in_source = @xpdf_in_source@
+ 
+ xpdf_objects =  xpdf/GHash.$(O) xpdf/GList.$(O) xpdf/GString.$(O) xpdf/gmem.$(O) xpdf/gfile.$(O) \
+-		  xpdf/FoFiTrueType.$(O) xpdf/FoFiType1.$(O) xpdf/FoFiType1C.$(O) xpdf/FoFiBase.$(O) xpdf/FoFiEncodings.$(O) \
++		  xpdf/FoFiTrueType.$(O) xpdf/FoFiType1.$(O) xpdf/FoFiType1C.$(O) xpdf/FoFiBase.$(O) xpdf/FoFiEncodings.$(O) xpdf/FoFiIdentifier.$(O) \
+ 		  xpdf/OutputDev.$(O) xpdf/PDFDoc.$(O) xpdf/Error.$(O) xpdf/Stream.$(O) xpdf/Object.$(O) \
+ 		  xpdf/Decrypt.$(O) xpdf/Array.$(O) xpdf/XRef.$(O) xpdf/Dict.$(O) xpdf/Parser.$(O) \
+ 		  xpdf/Lexer.$(O) xpdf/Outline.$(O) xpdf/PDFDocEncoding.$(O) xpdf/Catalog.$(O) \
+@@ -23,7 +23,7 @@ xpdf_objects =  xpdf/GHash.$(O) xpdf/GList.$(O) xpdf/GString.$(O) xpdf/gmem.$(O)
+ 		  xpdf/JArithmeticDecoder.$(O) xpdf/Gfx.$(O) xpdf/GfxFont.$(O) xpdf/CMap.$(O) xpdf/CharCodeToUnicode.$(O) \
+ 		  xpdf/PSTokenizer.$(O) xpdf/FontEncodingTables.$(O) xpdf/BuiltinFont.$(O) xpdf/BuiltinFontTables.$(O) \
+ 		  xpdf/GfxState.$(O) xpdf/Function.$(O) xpdf/Annot.$(O) xpdf/NameToCharCode.$(O) xpdf/UnicodeMap.$(O) \
+-		  xpdf/SecurityHandler.$(O) xpdf/TextOutputDev.$(O) xpdf/UnicodeTypeTable.$(O)
++		  xpdf/SecurityHandler.$(O) xpdf/TextOutputDev.$(O) xpdf/UnicodeTypeTable.$(O) xpdf/OptionalContent.$(O)
+ 		  #xpdf/OptionalContent.$(O)
+ 
+ splash_in_source = @splash_in_source@
+@@ -49,9 +49,9 @@ VectorGraphicOutputDev.$(O): VectorGraphicOutputDev.cc VectorGraphicOutputDev.h
+ 	$(CC) -I ./ $(xpdf_include) VectorGraphicOutputDev.cc -o $@
+ CharOutputDev.$(O): CharOutputDev.cc CharOutputDev.h CommonOutputDev.h InfoOutputDev.h ../gfxpoly.h
+ 	$(CC) -I ./ $(xpdf_include) CharOutputDev.cc -o $@
+-InfoOutputDev.$(O): InfoOutputDev.cc InfoOutputDev.h
++InfoOutputDev.$(O): InfoOutputDev.cc InfoOutputDev.h GFXSplashOutputDev.h
+ 	$(CC) -I ./ $(xpdf_include) InfoOutputDev.cc -o $@
+-BitmapOutputDev.$(O): BitmapOutputDev.cc BitmapOutputDev.h CommonOutputDev.h InfoOutputDev.h
++BitmapOutputDev.$(O): BitmapOutputDev.cc BitmapOutputDev.h CommonOutputDev.h InfoOutputDev.h GFXSplashOutputDev.h
+ 	$(CC) -I ./ $(xpdf_include) BitmapOutputDev.cc -o $@
+ XMLOutputDev.$(O): XMLOutputDev.cc XMLOutputDev.h xpdf/TextOutputDev.h
+ 	$(CC) -I ./ $(xpdf_include) XMLOutputDev.cc -o $@
+@@ -65,8 +65,8 @@ pdf.$(O): pdf.cc VectorGraphicOutputDev.h CharOutputDev.h InfoOutputDev.h Common
+ XPDFOK = xpdf/Gfx.cc
+ ifeq ($(shell echo inject*xpdf.pl),inject-xpdf.pl)
+ $(XPDFOK): Makefile.in inject-xpdf.pl xpdf-*tar.gz xpdf*patch
+-	@if test xpdf-changes.patch -nt $(XPDFOK);then perl inject-xpdf.pl xpdf-3.02.tar.gz;fi
+-	@if test '!' -d xpdf;then perl inject-xpdf.pl xpdf-3.02.tar.gz;fi
++	@if test xpdf-changes.patch -nt $(XPDFOK);then perl inject-xpdf.pl xpdf-3.03.tar.gz;fi
++	@if test '!' -d xpdf;then perl inject-xpdf.pl xpdf-3.03.tar.gz;fi
+ endif
+ 
+ xpdf/UnicodeMap.$(O): xpdf/UnicodeMap.cc
+@@ -131,6 +131,8 @@ xpdf/Error.$(O): xpdf/Error.cc aconf.h
+ 	$(CC) -I ./ -I xpdf xpdf/Error.cc -o $@
+ xpdf/Stream.$(O): xpdf/Stream.cc
+ 	$(CC) -I ./ -I xpdf xpdf/Stream.cc -o $@
++xpdf/OptionalContent.$(O): xpdf/OptionalContent.cc
++	$(CC) -I ./ -I xpdf xpdf/OptionalContent.cc -o $@
+ xpdf/PDFDoc.$(O): xpdf/PDFDoc.cc
+ 	$(CC) -I ./ -I xpdf xpdf/PDFDoc.cc -o $@
+ xpdf/SecurityHandler.$(O): xpdf/SecurityHandler.cc xpdf/SecurityHandler.h
+@@ -147,6 +149,8 @@ xpdf/FoFiType1C.$(O): xpdf/FoFiType1C.cc xpdf/FoFiBase.h
+ 	$(CC) -I ./ -I xpdf xpdf/FoFiType1C.cc -o $@
+ xpdf/FoFiType1.$(O): xpdf/FoFiType1.cc xpdf/FoFiBase.h
+ 	$(CC) -I ./ -I xpdf xpdf/FoFiType1.cc -o $@
++xpdf/FoFiIdentifier.$(O): xpdf/FoFiIdentifier.cc
++	$(CC) -I ./ -I xpdf xpdf/FoFiIdentifier.cc -o $@
+ xpdf/GList.$(O): xpdf/GList.cc
+ 	$(CC) -I ./ -I xpdf xpdf/GList.cc -o $@
+ xpdf/GString.$(O): xpdf/GString.cc
+diff --git a/lib/pdf/VectorGraphicOutputDev.cc b/lib/pdf/VectorGraphicOutputDev.cc
+index 9194a02..abade59 100644
+--- a/lib/pdf/VectorGraphicOutputDev.cc
++++ b/lib/pdf/VectorGraphicOutputDev.cc
+@@ -262,7 +262,7 @@ GBool VectorGraphicOutputDev::useTilingPatternFill()
+         return gTrue;
+     return gFalse;
+ }
+-GBool VectorGraphicOutputDev::useShadedFills()
++GBool VectorGraphicOutputDev::useShadedFills(POPPLER_SHADED_FILL_TYPE)
+ {
+     infofeature("shaded fills");
+     if(config_convertgradients)
+@@ -271,9 +271,11 @@ GBool VectorGraphicOutputDev::useShadedFills()
+ }
+ 
+ POPPLER_TILING_PATERN_RETURN VectorGraphicOutputDev::tilingPatternFill(GfxState *state,
+-			       POPPLER_TILING_PATERN_GFX
++                               Gfx *gfx,
++                               POPPLER_TILING_PATTERN_CATALOG
+ 			       Object *str,
+-			       int paintType, Dict *resDict,
++                               POPPLER_TILING_PATTERN_PMAT
++			       int paintType, POPPLER_TILING_PATTERN_TILING_TYPE Dict *resDict,
+ 			       double *mat, double *bbox,
+ 			       int x0, int y0, int x1, int y1,
+ 			       double xStep, double yStep) 
+@@ -680,9 +682,9 @@ void VectorGraphicOutputDev::updateFont(GfxState*state)
+     charDev->updateFont(state);
+ }
+ 
+-void VectorGraphicOutputDev::processLink(Link *link, Catalog *catalog)
++void VectorGraphicOutputDev::processLink(Link *link)
+ {
+-    charDev->processLink(link, catalog);
++    charDev->processLink(link);
+ }
+ 
+ void VectorGraphicOutputDev::beginString(GfxState *state, GString *s) 
+@@ -837,9 +839,10 @@ void VectorGraphicOutputDev::endType3Char(GfxState *state)
+ GBool VectorGraphicOutputDev::checkPageSlice(Page *page, double hDPI, double vDPI,
+ 			   int rotate, GBool useMediaBox, GBool crop,
+ 			   int sliceX, int sliceY, int sliceW, int sliceH,
+-			   GBool printing, Catalog *catalog,
++			   GBool printing,
+ 			   GBool (*abortCheckCbk)(void *data),
+-			   void *abortCheckCbkData)
++			   void *abortCheckCbkData
++                           POPPLER_CHECK_PAGE_SLICE_ANNOT_CBK POPPLER_CHECK_PAGE_SLICE_ANNOT_CBK_DATA)
+ {
+     this->setPage(page);
+     charDev->setPage(page);
+@@ -1362,11 +1365,11 @@ void VectorGraphicOutputDev::drawGeneralImage(GfxState *state, Object *ref, Stre
+ }
+ 
+ void VectorGraphicOutputDev::drawImageMask(GfxState *state, Object *ref, Stream *str,
+-				   int width, int height, GBool invert,
++				   int width, int height, GBool invert, POPPLER_INTERPOLATE
+ 				   GBool inlineImg) 
+ {
+     if(config_textonly) {
+-	OutputDev::drawImageMask(state,ref,str,width,height,invert,inlineImg);
++        OutputDev::drawImageMask(state,ref,str,width,height,invert,POPPLER_INTERPOLATE_ARG inlineImg);
+ 	return;
+     }
+     dbg("drawImageMask %dx%d, invert=%d inline=%d", width, height, invert, inlineImg);
+@@ -1375,11 +1378,11 @@ void VectorGraphicOutputDev::drawImageMask(GfxState *state, Object *ref, Stream
+ }
+ 
+ void VectorGraphicOutputDev::drawImage(GfxState *state, Object *ref, Stream *str,
+-			 int width, int height, GfxImageColorMap *colorMap,
++			 int width, int height, GfxImageColorMap *colorMap, POPPLER_INTERPOLATE
+ 			 int *maskColors, GBool inlineImg)
+ {
+     if(config_textonly) {
+-	OutputDev::drawImage(state,ref,str,width,height,colorMap,maskColors,inlineImg);
++	OutputDev::drawImage(state,ref,str,width,height,colorMap,POPPLER_INTERPOLATE_ARG maskColors,inlineImg);
+ 	return;
+     }
+     dbg("drawImage %dx%d, %s, %s, inline=%d", width, height, 
+@@ -1398,12 +1401,12 @@ void VectorGraphicOutputDev::drawImage(GfxState *state, Object *ref, Stream *str
+   
+ void VectorGraphicOutputDev::drawMaskedImage(GfxState *state, Object *ref, Stream *str,
+ 			       int width, int height,
+-			       GfxImageColorMap *colorMap,
++			       GfxImageColorMap *colorMap, POPPLER_INTERPOLATE
+ 			       Stream *maskStr, int maskWidth, int maskHeight,
+-			       GBool maskInvert)
++			       GBool maskInvert POPPLER_MASK_INTERPOLATE)
+ {
+     if(config_textonly) {
+-	OutputDev::drawMaskedImage(state,ref,str,width,height,colorMap,maskStr,maskWidth,maskHeight,maskInvert);
++	OutputDev::drawMaskedImage(state,ref,str,width,height,colorMap,POPPLER_INTERPOLATE_ARG maskStr,maskWidth,maskHeight,maskInvert POPPLER_MASK_INTERPOLATE_ARG);
+ 	return;
+     }
+     dbg("drawMaskedImage %dx%d, %s, %dx%d mask", width, height, 
+@@ -1420,13 +1423,13 @@ void VectorGraphicOutputDev::drawMaskedImage(GfxState *state, Object *ref, Strea
+ 
+ void VectorGraphicOutputDev::drawSoftMaskedImage(GfxState *state, Object *ref, Stream *str,
+ 				   int width, int height,
+-				   GfxImageColorMap *colorMap,
++				   GfxImageColorMap *colorMap, POPPLER_INTERPOLATE
+ 				   Stream *maskStr,
+ 				   int maskWidth, int maskHeight,
+-				   GfxImageColorMap *maskColorMap)
++				   GfxImageColorMap *maskColorMap POPPLER_MASK_INTERPOLATE)
+ {
+     if(config_textonly) {
+-	OutputDev::drawSoftMaskedImage(state,ref,str,width,height,colorMap,maskStr,maskWidth,maskHeight,maskColorMap);
++	OutputDev::drawSoftMaskedImage(state,ref,str,width,height,colorMap,POPPLER_INTERPOLATE_ARG maskStr,maskWidth,maskHeight,maskColorMap POPPLER_MASK_INTERPOLATE_ARG);
+ 	return;
+     }
+     dbg("drawSoftMaskedImage %dx%d, %s, %dx%d mask", width, height, 
+diff --git a/lib/pdf/VectorGraphicOutputDev.h b/lib/pdf/VectorGraphicOutputDev.h
+index 6e530d6..7a1e58f 100644
+--- a/lib/pdf/VectorGraphicOutputDev.h
++++ b/lib/pdf/VectorGraphicOutputDev.h
+@@ -64,9 +64,11 @@ public:
+   virtual GBool checkPageSlice(Page *page, double hDPI, double vDPI,
+ 			       int rotate, GBool useMediaBox, GBool crop,
+ 			       int sliceX, int sliceY, int sliceW, int sliceH,
+-			       GBool printing, Catalog *catalog,
++			       GBool printing,
+ 			       GBool (*abortCheckCbk)(void *data) = NULL,
+-			       void *abortCheckCbkData = NULL);
++			       void *abortCheckCbkData = NULL
++                               POPPLER_CHECK_PAGE_SLICE_ANNOT_CBK_H
++                               POPPLER_CHECK_PAGE_SLICE_ANNOT_CBK_DATA_H);
+   //----- get info about output device
+ 
+   // Does this device use upside-down coordinates?
+@@ -79,7 +81,7 @@ public:
+   //virtual GBool useShadedFills() { return gTrue; }
+ 
+   //----- link borders
+-  virtual void processLink(Link *link, Catalog *catalog);
++  virtual void processLink(Link *link);
+   virtual void setDefaultCTM(double *ctm);
+ 
+   //----- save/restore graphics state
+@@ -103,12 +105,14 @@ public:
+   
+   //----- shaded fills
+   virtual GBool useTilingPatternFill();
+-  virtual GBool useShadedFills();
++  virtual GBool useShadedFills(POPPLER_SHADED_FILL_TYPE);
+ 
+ virtual POPPLER_TILING_PATERN_RETURN tilingPatternFill(GfxState *state,
+-			     POPPLER_TILING_PATERN_GFX
++                             Gfx *gfx,
++                             POPPLER_TILING_PATTERN_CATALOG
+ 			     Object *str,
+-			     int paintType, Dict *resDict,
++                             POPPLER_TILING_PATTERN_PMAT
++			     int paintType, POPPLER_TILING_PATTERN_TILING_TYPE Dict *resDict,
+ 			     double *mat, double *bbox,
+ 			     int x0, int y0, int x1, int y1,
+ 			     double xStep, double yStep);
+@@ -128,22 +132,22 @@ virtual POPPLER_TILING_PATERN_RETURN tilingPatternFill(GfxState *state,
+ 
+   //----- image drawing
+   virtual void drawImageMask(GfxState *state, Object *ref, Stream *str,
+-			     int width, int height, GBool invert,
++			     int width, int height, GBool invert, POPPLER_INTERPOLATE
+ 			     GBool inlineImg);
+   virtual void drawImage(GfxState *state, Object *ref, Stream *str,
+-			 int width, int height, GfxImageColorMap *colorMap,
++			 int width, int height, GfxImageColorMap *colorMap, POPPLER_INTERPOLATE
+ 			 int *maskColors, GBool inlineImg);
+   virtual void drawMaskedImage(GfxState *state, Object *ref, Stream *str,
+ 			       int width, int height,
+-			       GfxImageColorMap *colorMap,
++			       GfxImageColorMap *colorMap, POPPLER_INTERPOLATE
+ 			       Stream *maskStr, int maskWidth, int maskHeight,
+-			       GBool maskInvert);
++			       GBool maskInvert POPPLER_MASK_INTERPOLATE);
+   virtual void drawSoftMaskedImage(GfxState *state, Object *ref, Stream *str,
+ 				   int width, int height,
+-				   GfxImageColorMap *colorMap,
++				   GfxImageColorMap *colorMap, POPPLER_INTERPOLATE
+ 				   Stream *maskStr,
+ 				   int maskWidth, int maskHeight,
+-				   GfxImageColorMap *maskColorMap);
++				   GfxImageColorMap *maskColorMap POPPLER_MASK_INTERPOLATE);
+ 
+   //----- transparency groups and soft masks (xpdf >= ~ 3.01.16)
+   virtual void beginTransparencyGroup(GfxState *state, double *bbox,
+diff --git a/lib/pdf/XMLOutputDev.cc b/lib/pdf/XMLOutputDev.cc
+index 06aad02..fb3aee1 100644
+--- a/lib/pdf/XMLOutputDev.cc
++++ b/lib/pdf/XMLOutputDev.cc
+@@ -27,7 +27,7 @@
+ #endif
+ 
+ XMLOutputDev::XMLOutputDev(char*filename)
+-:TextOutputDev(mktmpname(0), false, false, false)
++:TextOutputDev(mktmpname(0), false, 0, false, false)
+ {
+   out = fopen(filename, "wb");
+   if(!out) {
+#diff --git a/lib/pdf/inject-xpdf.pl b/lib/pdf/inject-xpdf.pl
+#index 386dc12..f0e2fc1 100755
+#--- a/lib/pdf/inject-xpdf.pl
+#+++ b/lib/pdf/inject-xpdf.pl
+#@@ -59,7 +59,7 @@ fi
+# if test "x\$VERSION" = "xstable";then
+#     echo "Switching to stable version"
+#     rm -f xpdf
+#-    ln -s xpdf-3.02 xpdf
+#+    ln -s xpdf-3.03 xpdf
+# elif test "x\$VERSION" = "xlatest";then
+#     echo "Switching to latest version"
+#     rm -f xpdf
+diff --git a/lib/pdf/pdf.cc b/lib/pdf/pdf.cc
+index 1e668a0..61165fb 100644
+--- a/lib/pdf/pdf.cc
++++ b/lib/pdf/pdf.cc
+@@ -16,6 +16,7 @@
+ #include "FullBitmapOutputDev.h"
+ #include "BitmapOutputDev.h"
+ #include "VectorGraphicOutputDev.h"
++#include "popplercompat.h"
+ #include "../mem.h"
+ #include "pdf.h"
+ #define NO_ARGPARSER
+@@ -533,7 +534,7 @@ static gfxdocument_t*pdf_open(gfxsource_t*src, const char*filename)
+ 	msg("<notice> Rendering at %f DPI. (Page width at 72 DPI: %f, target width: %d)", zoom, width_before, zoomtowidth);
+     }
+ 
+-    i->info = new InfoOutputDev(i->doc->getXRef());
++    i->info = new InfoOutputDev(i->doc);
+     int t;
+     i->pages = (pdf_page_info_t*)malloc(sizeof(pdf_page_info_t)*pdf_doc->num_pages);
+     memset(i->pages,0,sizeof(pdf_page_info_t)*pdf_doc->num_pages);
+diff --git a/lib/pdf/popplercompat.h b/lib/pdf/popplercompat.h
+index 8303369..9727733 100644
+--- a/lib/pdf/popplercompat.h
++++ b/lib/pdf/popplercompat.h
+@@ -17,17 +17,8 @@
+ 
+ #ifdef HAVE_POPPLER
+   #define POPPLER_TILING_PATERN_RETURN GBool
+-  #define POPPLER_TILING_PATERN_GFX
+-  #define POPPLER_TILING_PATERN_GFX_ARG
+ #else
+   #define POPPLER_TILING_PATERN_RETURN void
+-  #if (xpdfMajorVersion*10000 + xpdfMinorVersion*100 + xpdfUpdateVersion) < 30207
+-    #define POPPLER_TILING_PATERN_GFX
+-    #define POPPLER_TILING_PATERN_GFX_ARG
+-  #else
+-    #define POPPLER_TILING_PATERN_GFX Gfx *gfx,
+-    #define POPPLER_TILING_PATERN_GFX_ARG gfx,
+-  #endif
+ #endif
+ 
+ #ifdef HAVE_POPPLER
+@@ -43,6 +34,74 @@ char* mktmpname(char*ptr);
+ #endif
+ 
+ #ifdef HAVE_POPPLER
++#define AnnotLink Link
++#endif
++
++#ifdef HAVE_POPPLER
++  #define POPPLER_STARTDOC_ARG this->doc
++  #define INFO_OUTPUT_DEV_STARTDOC_ARG doc
++#else
++  #define POPPLER_STARTDOC_ARG this->xref
++  #define INFO_OUTPUT_DEV_STARTDOC_ARG doc->getXRef()
++#endif
++
++#ifdef HAVE_POPPLER
++  #define POPPLER_SHADED_FILL_TYPE int type
++  #define POPPLER_SHADED_FILL_TYPE_ARG type
++#else
++  #define POPPLER_SHADED_FILL_TYPE
++  #define POPPLER_SHADED_FILL_TYPE_ARG
++#endif
++
++#ifdef HAVE_POPPLER
++  #define POPPLER_TILING_PATTERN_CATALOG Catalog *cat,
++  #define POPPLER_TILING_PATTERN_CATALOG_ARG cat,
++  #define POPPLER_TILING_PATTERN_PMAT double *pmat,
++  #define POPPLER_TILING_PATTERN_PMAT_ARG pmat,
++  #define POPPLER_TILING_PATTERN_TILING_TYPE int tilingType,
++  #define POPPLER_TILING_PATTERN_TILING_TYPE_ARG tilingType,
++#else
++  #define POPPLER_TILING_PATTERN_CATALOG
++  #define POPPLER_TILING_PATTERN_CATALOG_ARG
++  #define POPPLER_TILING_PATTERN_PMAT
++  #define POPPLER_TILING_PATTERN_PMAT_ARG
++  #define POPPLER_TILING_PATTERN_TILING_TYPE
++  #define POPPLER_TILING_PATTERN_TILING_TYPE_ARG
++#endif
++
++#ifdef HAVE_POPPLER
++  #define POPPLER_GET_GLYPH_ARGS , x0, y0, &clip, &clipRes
++#else
++  #define POPPLER_GET_GLYPH_ARGS
++#endif
++
++#ifndef HAVE_POPPLER
++  #define GFXSplashOutputDev SplashOutputDev
++#endif
++
++#ifdef HAVE_POPPLER
++  #define POPPLER_CHECK_PAGE_SLICE_ANNOT_CBK_H , GBool (*annotDisplayDecideCbk)(Annot *annot, void *user_data) = NULL
++  #define POPPLER_CHECK_PAGE_SLICE_ANNOT_CBK , GBool (*annotDisplayDecideCbk)(Annot *annot, void *user_data)
++  #define POPPLER_CHECK_PAGE_SLICE_ANNOT_CBK_DATA_H , void *annotDisplayDecideCbkData = NULL
++  #define POPPLER_CHECK_PAGE_SLICE_ANNOT_CBK_DATA , void *annotDisplayDecideCbkData
++#else
++  #define POPPLER_CHECK_PAGE_SLICE_ANNOT_CBK_H
++  #define POPPLER_CHECK_PAGE_SLICE_ANNOT_CBK
++  #define POPPLER_CHECK_PAGE_SLICE_ANNOT_CBK_DATA_H
++  #define POPPLER_CHECK_PAGE_SLICE_ANNOT_CBK_DATA
++#endif
++
++#ifdef HAVE_POPPLER
++  #define POPPLER_COPY_STATE_PATH gTrue
++#else
++  #define POPPLER_COPY_STATE_PATH gFalse
++#endif
++
++#ifdef HAVE_POPPLER
++  #define GFXGlobalParams GlobalParams
++#endif
++
++#ifdef HAVE_POPPLER
+   #include <goo/GooString.h>
+   #include <goo/gfile.h>
+ #else
+#diff --git a/lib/pdf/xpdf-3.02.tar.gz b/lib/pdf/xpdf-3.02.tar.gz
+#deleted file mode 100644
+#index 1411a87..0000000
+#Binary files a/lib/pdf/xpdf-3.02.tar.gz and /dev/null differ
+#diff --git a/lib/pdf/xpdf-3.03.tar.gz b/lib/pdf/xpdf-3.03.tar.gz
+#new file mode 100644
+#index 0000000..488e9bd
+#Binary files /dev/null and b/lib/pdf/xpdf-3.03.tar.gz differ
+#diff --git a/lib/pdf/xpdf-changes.patch b/lib/pdf/xpdf-changes.patch
+#index 23d19a4..ca547b7 100644
+#--- a/lib/pdf/xpdf-changes.patch
+#+++ b/lib/pdf/xpdf-changes.patch
+# *** deleted ***
