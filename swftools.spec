@@ -2,7 +2,7 @@ Summary:	Utilities for SWF files manipulation
 Summary(pl.UTF-8):	Narzędzia do manipulacji na plikach SWF
 Name:		swftools
 Version:	0.9.2
-Release:	2
+Release:	3
 License:	GPL v2+
 Group:		Applications/Graphics
 #Source0Download: http://www.swftools.org/download.html
@@ -14,6 +14,7 @@ Patch2:		%{name}-giflib.patch
 Patch3:		%{name}-poppler.patch
 Patch4:		%{name}-poppler2.patch
 Patch5:		%{name}-install.patch
+Patch6:		%{name}-poppler-0.32.patch
 URL:		http://www.swftools.org/
 BuildRequires:	autoconf
 BuildRequires:	automake
@@ -47,6 +48,7 @@ Narzędzia do manipulacji na plikach SWF.
 %patch3 -p1
 %patch4 -p1
 %patch5 -p1
+%patch6 -p1
 
 %build
 %{__libtoolize}

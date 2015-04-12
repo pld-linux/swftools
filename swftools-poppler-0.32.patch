@@ -1,0 +1,63 @@
+--- swftools-0.9.2/lib/pdf/GFXSplashOutputDev.h~	2015-04-12 13:58:13.000000000 +0200
++++ swftools-0.9.2/lib/pdf/GFXSplashOutputDev.h	2015-04-12 14:00:03.907266111 +0200
+@@ -34,9 +34,8 @@
+ public:
+     GFXSplashOutputDev(SplashColorMode colorModeA, int bitmapRowPadA,
+                        GBool reverseVideoA, SplashColorPtr paperColorA,
+-                       GBool bitmapTopDownA = gTrue,
+-                       GBool allowAntialiasA = gTrue)
+-        : SplashOutputDev(colorModeA, bitmapRowPadA, reverseVideoA, paperColorA, bitmapTopDownA, allowAntialiasA)
++                       GBool bitmapTopDownA = gTrue)
++        : SplashOutputDev(colorModeA, bitmapRowPadA, reverseVideoA, paperColorA, bitmapTopDownA)
+     {
+         needFontUpdate = gFalse;
+     }
+--- swftools-0.9.2/lib/pdf/BitmapOutputDev.cc~	2015-04-12 13:58:13.000000000 +0200
++++ swftools-0.9.2/lib/pdf/BitmapOutputDev.cc	2015-04-12 14:00:45.613932477 +0200
+@@ -72,19 +72,19 @@
+     this->xref = doc->getXRef();
+     
+     /* color graphic output device, for creating bitmaps */
+-    this->rgbdev = new GFXSplashOutputDev(splashModeRGB8, 1, gFalse, splash_white, gTrue, gTrue);
++    this->rgbdev = new GFXSplashOutputDev(splashModeRGB8, 1, gFalse, splash_white, gTrue);
+   
+     /* color mode for binary bitmaps */
+     SplashColorMode colorMode = splashModeMono1;
+ 
+     /* two devices for testing things against clipping: one clips, the other doesn't */
+-    this->clip0dev = new GFXSplashOutputDev(colorMode, 1, gFalse, splash_black, gTrue, gFalse);
+-    this->clip1dev = new GFXSplashOutputDev(colorMode, 1, gFalse, splash_black, gTrue, gFalse);
++    this->clip0dev = new GFXSplashOutputDev(colorMode, 1, gFalse, splash_black, gTrue);
++    this->clip1dev = new GFXSplashOutputDev(colorMode, 1, gFalse, splash_black, gTrue);
+     
+     /* device indicating where polygonal pixels were drawn */
+-    this->boolpolydev = new GFXSplashOutputDev(colorMode, 1, gFalse, splash_black, gTrue, gFalse);
++    this->boolpolydev = new GFXSplashOutputDev(colorMode, 1, gFalse, splash_black, gTrue);
+     /* device indicating where text pixels were drawn */
+-    this->booltextdev = new GFXSplashOutputDev(colorMode, 1, gFalse, splash_black, gTrue, gFalse);
++    this->booltextdev = new GFXSplashOutputDev(colorMode, 1, gFalse, splash_black, gTrue);
+ 
+     /* device for handling texts and links */
+     this->gfxdev = new CharOutputDev(info, this->doc, page2page, num_pages, x, y, x1, y1, x2, y2);
+--- swftools-0.9.2/lib/pdf/FullBitmapOutputDev.cc~	2015-04-12 13:58:13.000000000 +0200
++++ swftools-0.9.2/lib/pdf/FullBitmapOutputDev.cc	2015-04-12 14:01:52.577265325 +0200
+@@ -49,7 +49,7 @@
+     msg("<verbose> Rendering everything to a bitmap");
+     
+     /* color graphic output device, for creating bitmaps */
+-    this->rgbdev = new SplashOutputDev(splashModeRGB8, 1, gFalse, splash_white, gTrue, gTrue);
++    this->rgbdev = new SplashOutputDev(splashModeRGB8, 1, gFalse, splash_white, gTrue);
+   
+     /* device for handling links */
+     this->gfxdev = new CharOutputDev(info, this->doc, page2page, num_pages, x, y, x1, y1, x2, y2);
+--- swftools-0.9.2/lib/pdf/InfoOutputDev.cc~	2015-04-12 13:58:13.000000000 +0200
++++ swftools-0.9.2/lib/pdf/InfoOutputDev.cc	2015-04-12 14:02:24.433931761 +0200
+@@ -103,7 +103,7 @@
+     currentglyph = 0;
+     previous_was_char = 0;
+     SplashColor white = {255,255,255};
+-    splash = new GFXSplashOutputDev(splashModeRGB8,320,0,white,0,0);
++    splash = new GFXSplashOutputDev(splashModeRGB8,320,0,white,0);
+     splash->startDoc(INFO_OUTPUT_DEV_STARTDOC_ARG);
+     last_font = 0;
+     current_type3_font = 0;
